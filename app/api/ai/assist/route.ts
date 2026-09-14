@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifyStudentSession } from "@/lib/auth/student";
 import {
   generateAIAssistance,
@@ -8,6 +8,37 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// Lightweight in-memory rate limiter per student user ID.
+// Architectural note: In multi-instance serverless deployments, rate limits apply per container instance.
+// Distributed rate limiting (e.g. Redis/Upstash) is omitted to avoid external infrastructure dependencies.
+const studentRequestMap = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const MAX_REQUESTS_PER_WINDOW = 10;
+
+function checkRateLimit(studentId: string): boolean {
+  const now = Date.now();
+  const timestamps = studentRequestMap.get(studentId) || [];
+  const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  if (recent.length >= MAX_REQUESTS_PER_WINDOW) {
+    return false;
+  }
+  recent.push(now);
+  studentRequestMap.set(studentId, recent);
+
+  // Periodic pruning if map grows large
+  if (studentRequestMap.size > 1000) {
+    studentRequestMap.forEach((list, key) => {
+      const active = list.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+      if (active.length === 0) {
+        studentRequestMap.delete(key);
+      } else {
+        studentRequestMap.set(key, active);
+      }
+    });
+  }
+  return true;
+}
+
 /**
  * POST /api/ai/assist
  *
@@ -16,6 +47,21 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: NextRequest) {
   try {
+    // 0. Bounded payload size check (max 2KB)
+    const contentLength = request.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > 2048) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "BAD_REQUEST",
+            message: "Request payload exceeds maximum allowed size of 2KB.",
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     // 1. CSRF defense: verify same-origin when origin header is present
     const origin = request.headers.get("origin");
     const host = request.headers.get("host");
@@ -63,7 +109,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Request Body Parsing & Strict Validation
+    // 3. Per-student request rate limiting
+    if (!checkRateLimit(authResult.user.id)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "RATE_LIMITED",
+            message: "Too many AI assistance requests. Please wait a minute before trying again.",
+          },
+        },
+        { status: 429 }
+      );
+    }
+
+    // 4. Request Body Parsing & Strict Validation
     const body = await request.json().catch(() => null);
 
     if (!body || typeof body !== "object") {
@@ -107,7 +167,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Generate AI Assistance via Server-Side Service
+    // 5. Generate AI Assistance via Server-Side Service
     const result = await generateAIAssistance(topicId.trim(), mode.trim());
 
     if (!result.success) {
@@ -115,8 +175,13 @@ export async function POST(request: NextRequest) {
         result.error.code === "NOT_FOUND"
           ? 404
           : result.error.code === "UNPUBLISHED_TOPIC" ||
-            result.error.code === "INVALID_INPUT"
+            result.error.code === "INVALID_INPUT" ||
+            result.error.code === "SAFETY_BLOCKED"
           ? 400
+          : result.error.code === "AI_RATE_LIMITED"
+          ? 429
+          : result.error.code === "AI_TIMEOUT"
+          ? 504
           : result.error.code === "AI_NOT_CONFIGURED"
           ? 503
           : 502;

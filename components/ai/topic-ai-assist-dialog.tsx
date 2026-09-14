@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
@@ -268,7 +268,7 @@ export function TopicAIAssistDialog({
               >
                 <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
                 <p className="leading-relaxed">
-                  <strong className="font-semibold">AI-Generated Learning Assistance:</strong> This content is generated to support your studies. The official SPPU syllabus remains the authoritative source of truth.
+                  <strong className="font-semibold">AI-Generated Learning Assistance • Not official SPPU curriculum content:</strong> Always consult the official SPPU syllabus as the authoritative source of truth.
                 </p>
               </div>
 
