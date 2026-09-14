@@ -281,7 +281,8 @@ export interface Database {
           title: string;
           url: string;
           type: ResourceType;
-          platform: string | null;
+          provider: string | null;
+          description: string | null;
           status: ResourceStatus;
           verified_by: string | null;
           verified_at: string | null;
@@ -292,7 +293,8 @@ export interface Database {
           title: string;
           url: string;
           type: ResourceType;
-          platform?: string | null;
+          provider?: string | null;
+          description?: string | null;
           status?: ResourceStatus;
           verified_by?: string | null;
           verified_at?: string | null;
@@ -303,7 +305,8 @@ export interface Database {
           title?: string;
           url?: string;
           type?: ResourceType;
-          platform?: string | null;
+          provider?: string | null;
+          description?: string | null;
           status?: ResourceStatus;
           verified_by?: string | null;
           verified_at?: string | null;
@@ -320,24 +323,30 @@ export interface Database {
       };
       topic_resources: {
         Row: {
-          topic_id: string;
+          learning_topic_id: string;
           resource_id: string;
-          created_at: string;
+          ranking_score: number | null;
+          is_featured: boolean | null;
+          assigned_at: string | null;
         };
         Insert: {
-          topic_id: string;
+          learning_topic_id: string;
           resource_id: string;
-          created_at?: string;
+          ranking_score?: number | null;
+          is_featured?: boolean | null;
+          assigned_at?: string | null;
         };
         Update: {
-          topic_id?: string;
+          learning_topic_id?: string;
           resource_id?: string;
-          created_at?: string;
+          ranking_score?: number | null;
+          is_featured?: boolean | null;
+          assigned_at?: string | null;
         };
         Relationships: [
           {
-            foreignKeyName: "topic_resources_topic_id_fkey";
-            columns: ["topic_id"];
+            foreignKeyName: "topic_resources_learning_topic_id_fkey";
+            columns: ["learning_topic_id"];
             referencedRelation: "learning_topics";
             referencedColumns: ["id"];
           },

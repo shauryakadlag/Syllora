@@ -597,3 +597,149 @@ BEGIN
 
 END $seed_learning_topics$;
 
+-- ==============================================================================
+-- 9. CANONICAL PROOF-OF-CONCEPT LEARNING RESOURCES (Phase 7C)
+-- ==============================================================================
+DO $seed_learning_resources$
+DECLARE
+    v_curator_id UUID := '00000000-0000-0000-0000-000000000001';
+    v_topic_id UUID;
+    v_res1_id UUID;
+    v_res2_id UUID;
+    v_res3_id UUID;
+    v_res4_id UUID;
+BEGIN
+    -- 1. Ensure system curation audit identity exists for accountability constraint.
+    -- This is a non-login, inactive system account (is_active = false, role = 'moderator',
+    -- no password credentials). It strictly satisfies the foreign key (REFERENCES admins(id))
+    -- and check constraint (resources_check) for seeded verified resources, while ensuring
+    -- public.is_admin() evaluates to false so this account has ZERO administrative privileges.
+    INSERT INTO auth.users (id, aud, role, email)
+    VALUES (v_curator_id, 'authenticated', 'authenticated', 'system.curator@internal.syllora')
+    ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email;
+
+    INSERT INTO public.admins (id, role, is_active)
+    VALUES (v_curator_id, 'moderator', false)
+    ON CONFLICT (id) DO UPDATE
+    SET role = 'moderator', is_active = false;
+
+    -- 2. Locate PCC-201-COM Unit 1 Item 1 Learning Topic
+    SELECT lt.id INTO v_topic_id
+    FROM learning_topics lt
+    JOIN syllabus_items si ON lt.syllabus_item_id = si.id
+    JOIN units u ON si.unit_id = u.id
+    JOIN subjects sub ON u.subject_id = sub.id
+    WHERE sub.course_code = 'PCC-201-COM' 
+      AND u.unit_order = 1 
+      AND si.original_order = 1
+      AND lt.normalized_title = 'Introduction to Data Structures and Abstract Data Types';
+
+    IF v_topic_id IS NOT NULL THEN
+        -- Resource 1: Verified Article
+        INSERT INTO resources (title, url, type, provider, description, status, verified_by, verified_at)
+        VALUES (
+            'Introduction to Data Structures',
+            'https://www.geeksforgeeks.org/introduction-to-data-structures/',
+            'article',
+            'GeeksforGeeks',
+            'Comprehensive guide covering data structure fundamentals, classifications, and abstract data types.',
+            'verified',
+            v_curator_id,
+            NOW()
+        )
+        ON CONFLICT (url) DO UPDATE
+        SET title = EXCLUDED.title,
+            type = EXCLUDED.type,
+            provider = EXCLUDED.provider,
+            description = EXCLUDED.description,
+            status = 'verified',
+            verified_by = v_curator_id,
+            verified_at = NOW()
+        RETURNING id INTO v_res1_id;
+
+        -- Resource 2: Verified Documentation
+        INSERT INTO resources (title, url, type, provider, description, status, verified_by, verified_at)
+        VALUES (
+            'Abstract Data Types (ADTs)',
+            'https://www.geeksforgeeks.org/abstract-data-types/',
+            'documentation',
+            'GeeksforGeeks',
+            'Formal definitions, characteristics, and operational specifications of Abstract Data Types.',
+            'verified',
+            v_curator_id,
+            NOW()
+        )
+        ON CONFLICT (url) DO UPDATE
+        SET title = EXCLUDED.title,
+            type = EXCLUDED.type,
+            provider = EXCLUDED.provider,
+            description = EXCLUDED.description,
+            status = 'verified',
+            verified_by = v_curator_id,
+            verified_at = NOW()
+        RETURNING id INTO v_res2_id;
+
+        -- Resource 3: Pending Resource (for RLS negative verification)
+        INSERT INTO resources (title, url, type, provider, description, status)
+        VALUES (
+            'Data Structures Draft Guide',
+            'https://example.com/draft-pending',
+            'article',
+            'DraftProvider',
+            'Pending review resource not yet verified.',
+            'pending'
+        )
+        ON CONFLICT (url) DO UPDATE
+        SET title = EXCLUDED.title,
+            status = 'pending'
+        RETURNING id INTO v_res3_id;
+
+        -- Resource 4: Rejected Resource (for RLS negative verification)
+        INSERT INTO resources (title, url, type, provider, description, status)
+        VALUES (
+            'Low Quality Reference Material',
+            'https://example.com/rejected-resource',
+            'article',
+            'RejectedProvider',
+            'Rejected unverified reference.',
+            'rejected'
+        )
+        ON CONFLICT (url) DO UPDATE
+        SET title = EXCLUDED.title,
+            status = 'rejected'
+        RETURNING id INTO v_res4_id;
+
+        -- Link Verified Resource 1 (Featured, rank 100)
+        IF v_res1_id IS NOT NULL THEN
+            INSERT INTO topic_resources (learning_topic_id, resource_id, ranking_score, is_featured)
+            VALUES (v_topic_id, v_res1_id, 100, true)
+            ON CONFLICT (learning_topic_id, resource_id) DO UPDATE
+            SET ranking_score = 100, is_featured = true;
+        END IF;
+
+        -- Link Verified Resource 2 (Rank 90)
+        IF v_res2_id IS NOT NULL THEN
+            INSERT INTO topic_resources (learning_topic_id, resource_id, ranking_score, is_featured)
+            VALUES (v_topic_id, v_res2_id, 90, false)
+            ON CONFLICT (learning_topic_id, resource_id) DO UPDATE
+            SET ranking_score = 90, is_featured = false;
+        END IF;
+
+        -- Link Pending Resource 3 (Rank 0)
+        IF v_res3_id IS NOT NULL THEN
+            INSERT INTO topic_resources (learning_topic_id, resource_id, ranking_score, is_featured)
+            VALUES (v_topic_id, v_res3_id, 0, false)
+            ON CONFLICT (learning_topic_id, resource_id) DO NOTHING;
+        END IF;
+
+        -- Link Rejected Resource 4 (Rank 0)
+        IF v_res4_id IS NOT NULL THEN
+            INSERT INTO topic_resources (learning_topic_id, resource_id, ranking_score, is_featured)
+            VALUES (v_topic_id, v_res4_id, 0, false)
+            ON CONFLICT (learning_topic_id, resource_id) DO NOTHING;
+        END IF;
+
+    END IF;
+END $seed_learning_resources$;
+

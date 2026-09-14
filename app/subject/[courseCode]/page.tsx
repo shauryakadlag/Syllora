@@ -8,11 +8,29 @@ import {
   AlertCircle,
   RotateCw,
   BookOpen,
+  ExternalLink,
+  FileText,
+  Video,
+  ListVideo,
+  FileDown,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/breadcrumb";
+
+interface LearningResource {
+  id: string;
+  title: string;
+  url: string;
+  type: string;
+  provider: string;
+  description: string | null;
+  status: string;
+  isFeatured: boolean;
+  rankingScore: number;
+}
 
 interface LearningTopic {
   id: string;
@@ -45,12 +63,30 @@ interface SubjectDetail {
   units: Unit[];
 }
 
+function getResourceTypeIcon(type: string) {
+  switch (type) {
+    case "video":
+      return <Video className="h-3.5 w-3.5 text-blue-500 shrink-0" aria-hidden="true" />;
+    case "playlist":
+      return <ListVideo className="h-3.5 w-3.5 text-sky-500 shrink-0" aria-hidden="true" />;
+    case "article":
+      return <FileText className="h-3.5 w-3.5 text-emerald-500 shrink-0" aria-hidden="true" />;
+    case "pdf":
+      return <FileDown className="h-3.5 w-3.5 text-rose-500 shrink-0" aria-hidden="true" />;
+    case "documentation":
+      return <BookOpen className="h-3.5 w-3.5 text-indigo-500 shrink-0" aria-hidden="true" />;
+    default:
+      return <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />;
+  }
+}
+
 export default function SubjectDetailPage() {
   const params = useParams<{ courseCode: string }>();
   const courseCodeParam = params?.courseCode || "";
 
   const [subject, setSubject] = useState<SubjectDetail | null>(null);
   const [topicsByItem, setTopicsByItem] = useState<Record<string, LearningTopic[]>>({});
+  const [resourcesByTopic, setResourcesByTopic] = useState<Record<string, LearningResource[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusCode, setStatusCode] = useState<number>(200);
@@ -60,6 +96,7 @@ export default function SubjectDetailPage() {
     setIsLoading(true);
     setError(null);
     setTopicsByItem({});
+    setResourcesByTopic({});
     try {
       const res = await fetch(`/api/curriculum/subjects/${courseCodeParam}`);
       const json = await res.json();
@@ -116,6 +153,34 @@ export default function SubjectDetailPage() {
           }
         }
         setTopicsByItem(mapping);
+
+        const allTopics = Object.values(mapping).flat();
+        if (allTopics.length > 0) {
+          const resourcePromises = allTopics.map(async (topic) => {
+            try {
+              const res = await fetch(`/api/curriculum/topics/${topic.id}/resources`);
+              if (!res.ok) return { topicId: topic.id, resources: [] };
+              const json = await res.json();
+              if (json.success && Array.isArray(json.data)) {
+                return { topicId: topic.id, resources: json.data as LearningResource[] };
+              }
+              return { topicId: topic.id, resources: [] };
+            } catch {
+              return { topicId: topic.id, resources: [] };
+            }
+          });
+
+          const resResults = await Promise.allSettled(resourcePromises);
+          if (!isMounted) return;
+
+          const resMapping: Record<string, LearningResource[]> = {};
+          for (const r of resResults) {
+            if (r.status === "fulfilled" && r.value.resources.length > 0) {
+              resMapping[r.value.topicId] = r.value.resources;
+            }
+          }
+          setResourcesByTopic(resMapping);
+        }
       } catch {
         // Gracefully preserve official syllabus even if topics network fails
       }
@@ -331,31 +396,93 @@ export default function SubjectDetailPage() {
                                     className="space-y-1.5 pt-0.5"
                                     aria-label={`Learning topics for syllabus item ${item.originalOrder}`}
                                   >
-                                    {itemTopics.map((topic) => (
-                                      <div
-                                        key={topic.id}
-                                        className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5 rounded-lg border border-primary/20 bg-primary/[0.03] dark:bg-primary/[0.07] px-3 py-2 text-xs transition-colors hover:border-primary/30"
-                                      >
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                          <BookOpen
-                                            className="h-3.5 w-3.5 text-primary"
-                                            aria-hidden="true"
-                                          />
-                                          <span className="text-[10px] font-bold tracking-wider uppercase text-primary font-mono">
-                                            Learning Topic
-                                          </span>
-                                        </div>
-                                        <span
-                                          className="text-muted-foreground/60 hidden sm:inline select-none"
-                                          aria-hidden="true"
+                                    {itemTopics.map((topic) => {
+                                      const topicResources = resourcesByTopic[topic.id] || [];
+                                      return (
+                                        <div
+                                          key={topic.id}
+                                          className="space-y-2 rounded-lg border border-primary/20 bg-primary/[0.03] dark:bg-primary/[0.07] p-2.5 sm:p-3 text-xs transition-colors hover:border-primary/30"
                                         >
-                                          •
-                                        </span>
-                                        <span className="font-medium text-foreground leading-snug break-words">
-                                          {topic.normalizedTitle}
-                                        </span>
-                                      </div>
-                                    ))}
+                                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                              <BookOpen
+                                                className="h-3.5 w-3.5 text-primary"
+                                                aria-hidden="true"
+                                              />
+                                              <span className="text-[10px] font-bold tracking-wider uppercase text-primary font-mono">
+                                                Learning Topic
+                                              </span>
+                                            </div>
+                                            <span
+                                              className="text-muted-foreground/60 hidden sm:inline select-none"
+                                              aria-hidden="true"
+                                            >
+                                              •
+                                            </span>
+                                            <span className="font-medium text-foreground leading-snug break-words">
+                                              {topic.normalizedTitle}
+                                            </span>
+                                          </div>
+
+                                          {/* Curated Resources (if verified resources exist for this topic) */}
+                                          {topicResources.length > 0 && (
+                                            <div
+                                              className="pt-2 border-t border-primary/10 space-y-1.5"
+                                              aria-label={`Learning resources for ${topic.normalizedTitle}`}
+                                            >
+                                              <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                                                <span>Curated Learning Resources</span>
+                                                <span className="text-muted-foreground/40">•</span>
+                                                <span className="text-[10px] font-normal text-muted-foreground">
+                                                  {topicResources.length}{" "}
+                                                  {topicResources.length === 1 ? "resource" : "resources"}
+                                                </span>
+                                              </div>
+                                              <div className="grid grid-cols-1 gap-1.5">
+                                                {topicResources.map((resource) => (
+                                                  <a
+                                                    key={resource.id}
+                                                    href={resource.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="group/res flex items-center justify-between gap-2.5 rounded-md border border-border/70 bg-background/80 hover:bg-muted/40 hover:border-border px-2.5 py-2 text-xs transition-colors focus:outline-hidden focus:ring-2 focus:ring-primary/20"
+                                                    aria-label={`${resource.title} on ${resource.provider} (opens in a new tab)`}
+                                                  >
+                                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                      {getResourceTypeIcon(resource.type)}
+                                                      <span className="font-medium text-foreground group-hover/res:text-primary transition-colors truncate">
+                                                        {resource.title}
+                                                      </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                      {resource.isFeatured && (
+                                                        <Badge
+                                                          variant="outline"
+                                                          className="text-[9px] px-1.5 py-0 border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-medium gap-0.5"
+                                                        >
+                                                          <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                                                          Featured
+                                                        </Badge>
+                                                      )}
+                                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 capitalize">
+                                                        {resource.type}
+                                                      </Badge>
+                                                      <span className="text-[10px] text-muted-foreground font-medium hidden sm:inline">
+                                                        {resource.provider}
+                                                      </span>
+                                                      <ExternalLink
+                                                        className="h-3 w-3 text-muted-foreground group-hover/res:text-foreground transition-colors"
+                                                        aria-hidden="true"
+                                                      />
+                                                    </div>
+                                                  </a>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 )}
                               </div>
