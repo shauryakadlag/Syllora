@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   AlertCircle,
   RotateCw,
+  Search,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -102,12 +103,30 @@ export default function HomePage() {
             Every course, unit, and syllabus topic structured for clear, focused study without sign-in barriers.
           </p>
 
+          {/* Quick Search Entry Point */}
+          <div className="mt-8 max-w-lg mx-auto">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("open-syllora-search"))}
+              className="w-full flex items-center justify-between gap-3 rounded-xl border border-border/80 bg-background/80 hover:bg-background hover:border-primary/40 px-4 py-3 text-sm text-muted-foreground shadow-xs hover:shadow-sm transition-all text-left group cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-primary/20"
+              aria-label="Search syllabus, topics, and resources"
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <Search className="h-4 w-4 text-primary shrink-0 transition-transform group-hover:scale-110" aria-hidden="true" />
+                <span className="truncate">Search subjects, units, topics, or resources...</span>
+              </div>
+              <kbd className="hidden sm:inline-flex items-center rounded border border-border/80 bg-muted/60 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                Ctrl K
+              </kbd>
+            </button>
+          </div>
+
           {/* Quick jump CTA */}
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="mt-5 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button asChild size="lg" className="w-full sm:w-auto gap-2 text-base px-7 shadow-sm font-medium">
               <a href="#curriculum">
                 <Layers className="h-5 w-5" aria-hidden="true" />
-                Select Semester
+                Explore Semesters
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </a>
             </Button>

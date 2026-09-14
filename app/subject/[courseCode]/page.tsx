@@ -199,6 +199,28 @@ export default function SubjectDetailPage() {
     }
   }, [subject]);
 
+  useEffect(() => {
+    function scrollToHash() {
+      if (typeof window === "undefined") return;
+      const hash = window.location.hash;
+      if (!hash) return;
+      const targetId = hash.replace("#", "");
+      const el = document.getElementById(targetId);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+
+    if (subject) {
+      const timer = setTimeout(scrollToHash, 150);
+      window.addEventListener("hashchange", scrollToHash);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener("hashchange", scrollToHash);
+      };
+    }
+  }, [subject, topicsByItem, resourcesByTopic]);
+
   const totalSyllabusItems =
     subject?.units.reduce((acc, u) => acc + (u.syllabusItems?.length || 0), 0) || 0;
 
@@ -350,7 +372,8 @@ export default function SubjectDetailPage() {
               {subject.units.map((unit) => (
                 <Card
                   key={unit.id}
-                  className="border-border/80 shadow-2xs overflow-hidden transition-shadow hover:shadow-sm"
+                  id={`unit-${unit.unitOrder}`}
+                  className="scroll-mt-20 border-border/80 shadow-2xs overflow-hidden transition-shadow hover:shadow-sm"
                 >
                   <CardHeader className="bg-muted/30 border-b border-border/60 py-4 px-5 sm:px-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -377,7 +400,8 @@ export default function SubjectDetailPage() {
                           return (
                             <li
                               key={item.id}
-                              className="flex items-start gap-3 text-sm text-foreground/90 leading-relaxed group"
+                              id={`item-${item.id}`}
+                              className="scroll-mt-20 flex items-start gap-3 text-sm text-foreground/90 leading-relaxed group"
                             >
                               <span
                                 className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground shrink-0 mt-0.5 group-hover:bg-primary/10 group-hover:text-primary transition-colors select-none"
@@ -401,7 +425,8 @@ export default function SubjectDetailPage() {
                                       return (
                                         <div
                                           key={topic.id}
-                                          className="space-y-2 rounded-lg border border-primary/20 bg-primary/[0.03] dark:bg-primary/[0.07] p-2.5 sm:p-3 text-xs transition-colors hover:border-primary/30"
+                                          id={`topic-${topic.id}`}
+                                          className="scroll-mt-20 space-y-2 rounded-lg border border-primary/20 bg-primary/[0.03] dark:bg-primary/[0.07] p-2.5 sm:p-3 text-xs transition-colors hover:border-primary/30"
                                         >
                                           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                                             <div className="flex items-center gap-1.5 shrink-0">
@@ -442,10 +467,11 @@ export default function SubjectDetailPage() {
                                                 {topicResources.map((resource) => (
                                                   <a
                                                     key={resource.id}
+                                                    id={`resource-${resource.id}`}
                                                     href={resource.url}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="group/res flex items-center justify-between gap-2.5 rounded-md border border-border/70 bg-background/80 hover:bg-muted/40 hover:border-border px-2.5 py-2 text-xs transition-colors focus:outline-hidden focus:ring-2 focus:ring-primary/20"
+                                                    className="scroll-mt-20 group/res flex items-center justify-between gap-2.5 rounded-md border border-border/70 bg-background/80 hover:bg-muted/40 hover:border-border px-2.5 py-2 text-xs transition-colors focus:outline-hidden focus:ring-2 focus:ring-primary/20"
                                                     aria-label={`${resource.title} on ${resource.provider} (opens in a new tab)`}
                                                   >
                                                     <div className="flex items-center gap-2 min-w-0 flex-1">
