@@ -1,7 +1,7 @@
 import React from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck, UserCheck, KeyRound, ArrowLeft, CheckCircle2, Lock } from "lucide-react";
+import { ShieldCheck, UserCheck, KeyRound, ArrowLeft, CheckCircle2, Lock, BookOpen, ArrowRight } from "lucide-react";
 import { verifyAdminSession } from "@/lib/auth/admin";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +51,13 @@ export default async function AdminDashboardPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <Link
+            href="/admin/resources"
+            className="inline-flex items-center gap-1.5 text-xs text-primary font-medium hover:text-primary/80 transition-colors py-1.5 px-2.5 rounded-md border border-primary/20 bg-primary/5 hover:bg-primary/10"
+          >
+            <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Learning Resources</span>
+          </Link>
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 px-2.5 rounded-md border border-border bg-background hover:bg-muted/40"
@@ -150,6 +157,35 @@ export default async function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Administrative Modules */}
+      <Card className="border-border/80 shadow-xs hover:border-primary/40 transition-all">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" aria-hidden="true" />
+              <CardTitle className="text-base font-bold text-foreground">
+                Learning Resources Roster
+              </CardTitle>
+            </div>
+            <Badge variant="outline" className="font-mono text-xs">
+              Phase 7F-A
+            </Badge>
+          </div>
+          <CardDescription className="text-xs text-muted-foreground">
+            Inspect all curated learning resources across verified, pending, and rejected moderation statuses.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-1">
+          <Link
+            href="/admin/resources"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+          >
+            <span>Open Resources Roster</span>
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        </CardContent>
+      </Card>
 
       {/* Scope Notice Card */}
       <Card className="border-primary/20 bg-primary/[0.02] dark:bg-primary/[0.05] shadow-xs">
