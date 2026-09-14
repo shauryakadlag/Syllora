@@ -4,7 +4,6 @@ import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
-  BookOpen,
   ArrowLeft,
   Layers,
   ChevronRight,
@@ -33,6 +32,12 @@ export default function SemesterPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusCode, setStatusCode] = useState<number>(200);
+
+  useEffect(() => {
+    if (semesterParam) {
+      document.title = `Semester ${semesterParam} — Computer Engineering | Syllora`;
+    }
+  }, [semesterParam]);
 
   const fetchSubjects = useCallback(async () => {
     if (!semesterParam) return;
@@ -73,7 +78,7 @@ export default function SemesterPage() {
 
       {/* Loading Skeleton */}
       {isLoading && (
-        <div className="space-y-6">
+        <div className="space-y-6" aria-busy="true" aria-label="Loading semester subjects">
           <div className="space-y-2 animate-pulse">
             <div className="h-4 w-32 bg-muted rounded" />
             <div className="h-8 w-64 bg-muted rounded" />
@@ -101,11 +106,11 @@ export default function SemesterPage() {
 
       {/* Error State */}
       {!isLoading && error && (
-        <div className="max-w-lg mx-auto my-12 text-center">
+        <div className="max-w-lg mx-auto my-12 text-center" role="alert">
           <Card className="border-border bg-card p-8 shadow-xs">
             <CardContent className="space-y-4 pt-4">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-                <AlertCircle className="h-6 w-6" />
+                <AlertCircle className="h-6 w-6" aria-hidden="true" />
               </div>
               <div className="space-y-1">
                 <h2 className="text-xl font-bold text-foreground">
@@ -120,13 +125,13 @@ export default function SemesterPage() {
               <div className="flex flex-col sm:flex-row justify-center gap-3 pt-3">
                 <Button asChild variant="outline" size="sm" className="gap-1.5">
                   <Link href="/">
-                    <ArrowLeft className="h-4 w-4" />
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                     Back to All Semesters
                   </Link>
                 </Button>
                 {statusCode >= 500 && (
                   <Button onClick={fetchSubjects} size="sm" className="gap-1.5">
-                    <RotateCw className="h-4 w-4" />
+                    <RotateCw className="h-4 w-4" aria-hidden="true" />
                     Retry
                   </Button>
                 )}
@@ -144,9 +149,9 @@ export default function SemesterPage() {
             <div className="flex items-center gap-2">
               <Link
                 href="/#curriculum"
-                className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-1 px-1 -ml-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <ArrowLeft className="h-3.5 w-3.5" />
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 <span>All Semesters</span>
               </Link>
             </div>
@@ -171,7 +176,7 @@ export default function SemesterPage() {
           {subjects.length === 0 ? (
             <Card className="p-8 text-center bg-muted/20 border-dashed">
               <CardContent className="space-y-3 pt-4">
-                <Layers className="h-10 w-10 text-muted-foreground/60 mx-auto" />
+                <Layers className="h-10 w-10 text-muted-foreground/60 mx-auto" aria-hidden="true" />
                 <h3 className="text-base font-semibold text-foreground">No subjects found</h3>
                 <p className="text-sm text-muted-foreground max-w-sm mx-auto">
                   Curriculum data for Semester {semesterParam} has not been seeded yet.
@@ -188,7 +193,7 @@ export default function SemesterPage() {
                 <Link
                   key={subj.id}
                   href={`/subject/${subj.courseCode}`}
-                  className="group block"
+                  className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <Card className="h-full flex flex-col justify-between border-border/80 transition-all duration-200 hover:border-primary/50 hover:shadow-md group-hover:-translate-y-0.5">
                     <CardHeader className="pb-3">
@@ -212,7 +217,7 @@ export default function SemesterPage() {
                     <CardFooter className="pt-2 border-t border-border/40">
                       <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary group-hover:underline">
                         <span>Explore Units & Topics</span>
-                        <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                        <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
                       </div>
                     </CardFooter>
                   </Card>

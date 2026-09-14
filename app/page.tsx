@@ -44,6 +44,10 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    document.title = "Syllora — University Syllabus to Structured Learning Path";
+  }, []);
+
   const fetchStructure = async () => {
     setIsLoading(true);
     setError(null);
@@ -79,7 +83,7 @@ export default function HomePage() {
               variant="academic"
               className="px-3.5 py-1 text-xs sm:text-sm font-medium rounded-full flex items-center gap-1.5 shadow-2xs"
             >
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
               SPPU • 2024 Pattern • Computer Engineering
             </Badge>
           </div>
@@ -102,9 +106,9 @@ export default function HomePage() {
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button asChild size="lg" className="w-full sm:w-auto gap-2 text-base px-7 shadow-sm font-medium">
               <a href="#curriculum">
-                <Layers className="h-5 w-5" />
+                <Layers className="h-5 w-5" aria-hidden="true" />
                 Select Semester
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </a>
             </Button>
           </div>
@@ -112,7 +116,7 @@ export default function HomePage() {
       </section>
 
       {/* Curriculum Selection Section */}
-      <section id="curriculum" className="py-12 md:py-20 bg-muted/20">
+      <section id="curriculum" className="py-12 md:py-20 bg-muted/20 scroll-mt-16">
         <div className="container mx-auto max-w-5xl px-4 sm:px-6">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <Badge variant="outline" className="text-xs font-semibold mb-2 uppercase tracking-wider text-primary border-primary/30">
@@ -130,7 +134,7 @@ export default function HomePage() {
 
           {/* Loading Skeleton */}
           {isLoading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto" aria-busy="true" aria-label="Loading available semesters">
               {[1, 2].map((i) => (
                 <div
                   key={i}
@@ -152,17 +156,17 @@ export default function HomePage() {
 
           {/* Error State */}
           {!isLoading && error && (
-            <Card className="max-w-md mx-auto border-destructive/30 bg-destructive/5 text-center p-6">
+            <Card className="max-w-md mx-auto border-destructive/30 bg-destructive/5 text-center p-6" role="alert">
               <CardContent className="space-y-4 pt-4">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-                  <AlertCircle className="h-6 w-6" />
+                  <AlertCircle className="h-6 w-6" aria-hidden="true" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-foreground">Unable to Load Curriculum</h3>
                   <p className="text-sm text-muted-foreground mt-1">{error}</p>
                 </div>
                 <Button onClick={fetchStructure} variant="outline" size="sm" className="gap-2">
-                  <RotateCw className="h-4 w-4" />
+                  <RotateCw className="h-4 w-4" aria-hidden="true" />
                   Retry
                 </Button>
               </CardContent>
@@ -176,14 +180,14 @@ export default function HomePage() {
                 <Link
                   key={sem.id}
                   href={`/semester/${sem.semesterNumber}`}
-                  className="group block"
+                  className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <Card className="h-full border-border/80 transition-all duration-200 hover:border-primary/50 hover:shadow-md group-hover:-translate-y-0.5">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
                           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                            <GraduationCap className="h-5 w-5" />
+                            <GraduationCap className="h-5 w-5" aria-hidden="true" />
                           </div>
                           <CardTitle className="text-2xl font-bold">
                             Semester {sem.semesterNumber}
@@ -202,7 +206,7 @@ export default function HomePage() {
                     <CardContent className="pt-2">
                       <div className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary group-hover:underline">
                         <span>View Semester Subjects</span>
-                        <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                        <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
                       </div>
                     </CardContent>
                   </Card>
@@ -219,7 +223,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="p-6 rounded-xl border border-border bg-card space-y-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <BookOpen className="h-4 w-4" />
+                <BookOpen className="h-4 w-4" aria-hidden="true" />
               </div>
               <h3 className="font-semibold text-foreground text-base">Official Syllabus Fidelity</h3>
               <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
@@ -230,7 +234,7 @@ export default function HomePage() {
 
             <div className="p-6 rounded-xl border border-border bg-card space-y-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Layers className="h-4 w-4" />
+                <Layers className="h-4 w-4" aria-hidden="true" />
               </div>
               <h3 className="font-semibold text-foreground text-base">Structured Hierarchy</h3>
               <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
@@ -241,7 +245,7 @@ export default function HomePage() {
 
             <div className="p-6 rounded-xl border border-border bg-card space-y-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <CheckCircle2 className="h-4 w-4" />
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               </div>
               <h3 className="font-semibold text-foreground text-base">Open & Distraction-Free</h3>
               <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">

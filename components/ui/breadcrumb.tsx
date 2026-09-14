@@ -18,9 +18,9 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
         <li className="inline-flex items-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+            className="inline-flex items-center gap-1 transition-colors hover:text-foreground rounded p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Home className="h-3.5 w-3.5" />
+            <Home className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="sr-only sm:not-sr-only">Home</span>
           </Link>
         </li>
@@ -35,13 +35,15 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
                 <span
                   className="font-medium text-foreground truncate max-w-[200px] sm:max-w-[360px]"
                   aria-current={isLast ? "page" : undefined}
+                  title={item.label}
                 >
                   {item.label}
                 </span>
               ) : (
                 <Link
                   href={item.href}
-                  className="transition-colors hover:text-foreground truncate max-w-[150px] sm:max-w-[220px]"
+                  className="transition-colors hover:text-foreground truncate max-w-[150px] sm:max-w-[220px] rounded p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  title={item.label}
                 >
                   {item.label}
                 </Link>
