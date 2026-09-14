@@ -14,6 +14,8 @@ import {
   ListVideo,
   FileDown,
   Sparkles,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +66,11 @@ interface SubjectDetail {
   units: Unit[];
 }
 
+interface StudentUser {
+  id: string;
+  email: string;
+}
+
 function getResourceTypeIcon(type: string) {
   switch (type) {
     case "video":
@@ -91,6 +98,70 @@ export default function SubjectDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusCode, setStatusCode] = useState<number>(200);
+
+  // Student authentication & learning progress state
+  const [student, setStudent] = useState<StudentUser | null>(null);
+  const [completedTopicIds, setCompletedTopicIds] = useState<Set<string>>(new Set());
+  const [isMutatingTopic, setIsMutatingTopic] = useState<string | null>(null);
+
+  // Load student auth and progress
+  useEffect(() => {
+    let isMounted = true;
+    async function loadStudentProgress() {
+      try {
+        const authRes = await fetch("/api/student/auth/me");
+        if (!authRes.ok) return;
+        const authJson = await authRes.json();
+        if (!isMounted || !authJson.success || !authJson.data?.authenticated) return;
+
+        setStudent(authJson.data.user);
+
+        const progRes = await fetch("/api/student/progress");
+        if (!progRes.ok) return;
+        const progJson = await progRes.json();
+        if (isMounted && progJson.success && Array.isArray(progJson.data?.completedTopicIds)) {
+          setCompletedTopicIds(new Set(progJson.data.completedTopicIds));
+        }
+      } catch {
+        // Non-blocking
+      }
+    }
+    loadStudentProgress();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const toggleTopicCompletion = useCallback(async (topicId: string) => {
+    if (!student || isMutatingTopic) return;
+    setIsMutatingTopic(topicId);
+
+    const isCompleted = completedTopicIds.has(topicId);
+    const method = isCompleted ? "DELETE" : "POST";
+
+    try {
+      const res = await fetch(`/api/student/progress/${topicId}`, {
+        method,
+      });
+      const json = await res.json().catch(() => null);
+
+      if (res.ok && json?.success) {
+        setCompletedTopicIds((prev) => {
+          const next = new Set(prev);
+          if (isCompleted) {
+            next.delete(topicId);
+          } else {
+            next.add(topicId);
+          }
+          return next;
+        });
+      }
+    } catch {
+      // Non-blocking
+    } finally {
+      setIsMutatingTopic(null);
+    }
+  }, [student, isMutatingTopic, completedTopicIds]);
 
   const fetchSubject = useCallback(async () => {
     if (!courseCodeParam) return;
@@ -225,6 +296,11 @@ export default function SubjectDetailPage() {
   const totalSyllabusItems =
     subject?.units.reduce((acc, u) => acc + (u.syllabusItems?.length || 0), 0) || 0;
 
+  const allTopics = Object.values(topicsByItem).flat();
+  const totalTopics = allTopics.length;
+  const completedCount = allTopics.filter((t) => completedTopicIds.has(t.id)).length;
+  const progressPercent = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
+
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:py-12">
       {/* Breadcrumbs */}
@@ -352,6 +428,54 @@ export default function SubjectDetailPage() {
             </div>
           </div>
 
+          {/* Learning Topic Progress Indicator */}
+          {totalTopics > 0 && (
+            <div className="rounded-xl border border-border/80 bg-card p-4 sm:p-5 shadow-2xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <h2 className="text-sm font-semibold text-foreground">
+                    Learning Topic Progress
+                  </h2>
+                </div>
+                {student ? (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {completedCount} of {totalTopics} topics completed ({progressPercent}%)
+                  </span>
+                ) : (
+                  <Link
+                    href={`/student/login?returnTo=/subject/${courseCodeParam}`}
+                    className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    <span>Sign in to track progress</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                )}
+              </div>
+
+              {/* Visual Progress Bar */}
+              <div
+                className="w-full bg-muted rounded-full h-2 overflow-hidden"
+                role="progressbar"
+                aria-valuenow={progressPercent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Subject progress: ${progressPercent}% completed`}
+              >
+                <div
+                  className="bg-primary h-full transition-all duration-300 rounded-full"
+                  style={{ width: `${student ? progressPercent : 0}%` }}
+                />
+              </div>
+
+              {!student && (
+                <p className="text-[11px] text-muted-foreground">
+                  Optional: Create a student account to save your completed topics across sessions. All syllabus content remains free and accessible without login.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Units and Syllabus Content */}
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -429,25 +553,81 @@ export default function SubjectDetailPage() {
                                           id={`topic-${topic.id}`}
                                           className="scroll-mt-20 space-y-2 rounded-lg border border-primary/20 bg-primary/[0.03] dark:bg-primary/[0.07] p-2.5 sm:p-3 text-xs transition-colors hover:border-primary/30"
                                         >
-                                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
-                                            <div className="flex items-center gap-1.5 shrink-0">
-                                              <BookOpen
-                                                className="h-3.5 w-3.5 text-primary"
+                                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5 min-w-0 flex-1">
+                                              <div className="flex items-center gap-1.5 shrink-0">
+                                                <BookOpen
+                                                  className="h-3.5 w-3.5 text-primary"
+                                                  aria-hidden="true"
+                                                />
+                                                <span className="text-[10px] font-bold tracking-wider uppercase text-primary font-mono">
+                                                  Learning Topic
+                                                </span>
+                                              </div>
+                                              <span
+                                                className="text-muted-foreground/60 hidden sm:inline select-none"
                                                 aria-hidden="true"
-                                              />
-                                              <span className="text-[10px] font-bold tracking-wider uppercase text-primary font-mono">
-                                                Learning Topic
+                                              >
+                                                •
+                                              </span>
+                                              <span className="font-medium text-foreground leading-snug break-words">
+                                                {topic.normalizedTitle}
                                               </span>
                                             </div>
-                                            <span
-                                              className="text-muted-foreground/60 hidden sm:inline select-none"
-                                              aria-hidden="true"
-                                            >
-                                              •
-                                            </span>
-                                            <span className="font-medium text-foreground leading-snug break-words">
-                                              {topic.normalizedTitle}
-                                            </span>
+
+                                            {/* Completion Toggle */}
+                                            <div className="shrink-0 flex items-center">
+                                              {student ? (
+                                                completedTopicIds.has(topic.id) ? (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => toggleTopicCompletion(topic.id)}
+                                                    disabled={isMutatingTopic === topic.id}
+                                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-md px-2 py-0.5 transition-colors cursor-pointer disabled:opacity-50"
+                                                    title="Click to mark as incomplete"
+                                                    aria-label={`Mark topic "${topic.normalizedTitle}" as incomplete`}
+                                                  >
+                                                    {isMutatingTopic === topic.id ? (
+                                                      <RotateCw className="h-3 w-3 animate-spin" aria-hidden="true" />
+                                                    ) : (
+                                                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                                                    )}
+                                                    <span>Completed</span>
+                                                  </button>
+                                                ) : (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => toggleTopicCompletion(topic.id)}
+                                                    disabled={isMutatingTopic === topic.id}
+                                                    className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground bg-background hover:bg-muted border border-border/80 rounded-md px-2 py-0.5 transition-colors cursor-pointer disabled:opacity-50"
+                                                    title="Click to mark as completed"
+                                                    aria-label={`Mark topic "${topic.normalizedTitle}" as completed`}
+                                                  >
+                                                    {isMutatingTopic === topic.id ? (
+                                                      <RotateCw className="h-3 w-3 animate-spin" aria-hidden="true" />
+                                                    ) : (
+                                                      <Circle className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                                                    )}
+                                                    <span>Mark Complete</span>
+                                                  </button>
+                                                )
+                                              ) : (
+                                                <Button
+                                                  asChild
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+                                                >
+                                                  <Link
+                                                    href={`/student/login?returnTo=/subject/${courseCodeParam}#topic-${topic.id}`}
+                                                    title="Sign in to track progress"
+                                                  >
+                                                    <Circle className="h-3 w-3 text-muted-foreground/70" aria-hidden="true" />
+                                                    <span>Complete</span>
+                                                  </Link>
+                                                </Button>
+                                              )}
+                                            </div>
                                           </div>
 
                                           {/* Curated Resources (if verified resources exist for this topic) */}

@@ -406,6 +406,31 @@ export interface Database {
           }
         ];
       };
+      student_topic_progress: {
+        Row: {
+          user_id: string;
+          topic_id: string;
+          completed_at: string;
+        };
+        Insert: {
+          user_id: string;
+          topic_id: string;
+          completed_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          topic_id?: string;
+          completed_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "student_topic_progress_topic_id_fkey";
+            columns: ["topic_id"];
+            referencedRelation: "learning_topics";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -414,7 +439,7 @@ export interface Database {
       is_admin: {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
-      };
+        };
     };
     Enums: {
       resource_status: ResourceStatus;
@@ -438,3 +463,4 @@ export type LearningTopicRow = Database["public"]["Tables"]["learning_topics"]["
 export type ResourceRow = Database["public"]["Tables"]["resources"]["Row"];
 export type TopicResourceRow = Database["public"]["Tables"]["topic_resources"]["Row"];
 export type ResourceReportRow = Database["public"]["Tables"]["resource_reports"]["Row"];
+export type StudentTopicProgressRow = Database["public"]["Tables"]["student_topic_progress"]["Row"];

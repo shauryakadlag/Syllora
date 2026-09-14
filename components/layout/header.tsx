@@ -2,14 +2,50 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { BookOpen, Menu, X, Layers, Search } from "lucide-react";
+import { BookOpen, Menu, X, Layers, Search, LogIn, LogOut, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SearchDialog } from "@/components/search/search-dialog";
 
+interface StudentUser {
+  id: string;
+  email: string;
+}
+
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [student, setStudent] = useState<StudentUser | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/student/auth/me");
+        if (!res.ok) return;
+        const json = await res.json();
+        if (isMounted && json.success && json.data?.authenticated) {
+          setStudent(json.data.user);
+        }
+      } catch {
+        // Non-blocking
+      }
+    }
+    checkAuth();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  async function handleLogout() {
+    try {
+      await fetch("/api/student/auth/logout", { method: "POST" });
+      setStudent(null);
+      window.location.reload();
+    } catch {
+      // Non-blocking
+    }
+  }
 
   // Global hotkeys (Ctrl+K, Cmd+K, or /) and custom event listener
   useEffect(() => {
@@ -97,6 +133,33 @@ export function Header() {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-3">
+            {student ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground border border-border/80 rounded-md px-2.5 py-1 bg-muted/30">
+                  <User className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  <span className="max-w-[130px] truncate font-medium text-foreground" title={student.email}>
+                    {student.email}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="text-xs text-muted-foreground hover:text-foreground h-8 px-2.5 gap-1"
+                >
+                  <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Sign Out</span>
+                </Button>
+              </div>
+            ) : (
+              <Button asChild variant="ghost" size="sm" className="gap-1.5 text-xs h-8 text-muted-foreground hover:text-foreground">
+                <Link href="/student/login">
+                  <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Student Sign In</span>
+                </Link>
+              </Button>
+            )}
+
             <Button asChild size="sm" className="gap-2">
               <Link href="/#curriculum">
                 <Layers className="h-4 w-4" />
@@ -171,7 +234,47 @@ export function Header() {
                 Curriculum
               </Link>
             </div>
-            <div className="pt-2">
+
+            {/* Mobile Student Auth Controls */}
+            <div className="pt-1 pb-1 border-t border-border/60">
+              {student ? (
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+                    <User className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                    <span className="truncate font-medium text-foreground">{student.email}</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-center gap-1.5 text-xs text-muted-foreground"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                  >
+                    <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Sign Out</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="pt-2">
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-center gap-1.5 text-xs"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <Link href="/student/login">
+                      <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>Student Sign In</span>
+                    </Link>
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-1">
               <Button
                 asChild
                 className="w-full gap-2 justify-center"
