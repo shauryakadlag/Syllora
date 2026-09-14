@@ -16,6 +16,8 @@ import {
   Layers,
   AlertTriangle,
   Info,
+  Plus,
+  Pencil,
 } from "lucide-react";
 import { verifyAdminSession } from "@/lib/auth/admin";
 import { getAdminResources, AdminResourceSummary } from "@/lib/services/admin-resources";
@@ -127,7 +129,7 @@ export default async function AdminResourcesPage() {
               {admin.role}
             </Badge>
             <Badge variant="secondary" className="text-xs text-muted-foreground font-mono">
-              Phase 7F-A
+              Phase 7F-B
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground pt-0.5">
@@ -136,6 +138,13 @@ export default async function AdminResourcesPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <Link
+            href="/admin/resources/new"
+            className="inline-flex items-center gap-1.5 text-xs text-primary-foreground font-semibold py-1.5 px-3 rounded-md bg-primary hover:bg-primary/90 transition-colors shadow-xs"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Add Resource</span>
+          </Link>
           <Link
             href="/admin"
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 px-2.5 rounded-md border border-border bg-background hover:bg-muted/40"
@@ -266,6 +275,7 @@ export default async function AdminResourcesPage() {
                     <th scope="col" className="px-4 py-3 w-36">Provider</th>
                     <th scope="col" className="px-4 py-3">Linked Topic</th>
                     <th scope="col" className="px-4 py-3 w-28 text-right">Added</th>
+                    <th scope="col" className="px-4 py-3 w-20 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -340,6 +350,18 @@ export default async function AdminResourcesPage() {
                       <td className="px-4 py-3.5 align-top text-right font-mono text-[11px] text-muted-foreground whitespace-nowrap">
                         {formatDate(item.createdAt)}
                       </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3.5 align-top text-right">
+                        <Link
+                          href={`/admin/resources/${item.id}/edit`}
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium hover:underline py-1 px-2 rounded hover:bg-primary/5 transition-colors"
+                          title="Edit resource metadata"
+                        >
+                          <Pencil className="h-3 w-3" aria-hidden="true" />
+                          <span>Edit</span>
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -397,6 +419,16 @@ export default async function AdminResourcesPage() {
                       <span>{item.topic.normalizedTitle}</span>
                     </div>
                   )}
+
+                  <div className="flex items-center justify-end pt-1">
+                    <Link
+                      href={`/admin/resources/${item.id}/edit`}
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium py-1 px-2.5 rounded border border-border bg-background hover:bg-muted/40 transition-colors"
+                    >
+                      <Pencil className="h-3 w-3" aria-hidden="true" />
+                      <span>Edit Resource</span>
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>
@@ -404,19 +436,17 @@ export default async function AdminResourcesPage() {
         )}
       </Card>
 
-      {/* Scope / Read-Only Notice Banner */}
+      {/* Scope / Invariants Notice Banner */}
       <Card className="border-primary/20 bg-primary/[0.02] dark:bg-primary/[0.05] shadow-xs">
         <CardContent className="p-4 sm:p-5 flex items-start gap-3.5 text-xs text-muted-foreground">
           <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" aria-hidden="true" />
           <div className="space-y-1">
             <p className="font-semibold text-foreground">
-              Phase 7F-A: Read-Only Resources Roster
+              Phase 7F-B: Secure Resource Create/Edit Active
             </p>
             <p className="leading-relaxed">
-              This administrative interface provides read-only visibility into learning resources
-              across all moderation states (verified, pending, rejected).
-              Resource creation, status modification, curation workflows, and topic linking will be
-              enabled in subsequent phases following the strict security invariants of Syllora.
+              Administrators may create new catalog resources (defaulting to pending status) and edit existing metadata.
+              Moderation verification transitions, topic linking, student submissions, and rating workflows remain strictly scoped to upcoming phases.
             </p>
           </div>
         </CardContent>

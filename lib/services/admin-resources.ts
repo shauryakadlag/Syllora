@@ -2,6 +2,26 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { Database, ResourceStatus, ResourceType } from "@/types/database";
 import { getSupabaseAdminServerClient } from "../supabase/admin-server";
 
+import {
+  ALLOWED_RESOURCE_TYPES,
+  UUID_REGEX,
+  isSafeUrl,
+  formatProvider,
+  validateResourceInput,
+  type ValidatedResourceInput,
+  type ValidationResult,
+} from "../validation/resources";
+
+export {
+  ALLOWED_RESOURCE_TYPES,
+  UUID_REGEX,
+  isSafeUrl,
+  formatProvider,
+  validateResourceInput,
+  type ValidatedResourceInput,
+  type ValidationResult,
+};
+
 export interface AdminResourceSummary {
   id: string;
   title: string;
@@ -34,36 +54,11 @@ export interface AdminResourceListResult {
 
 export type ServiceResult<T> =
   | { success: true; data: T; error: null }
-  | { success: false; data: null; error: { code: string; message: string } };
-
-/**
- * Validates that a URL uses safe HTTP or HTTPS protocol.
- * Prevents javascript:, data:, or other dangerous schemes.
- */
-export function isSafeUrl(rawUrl: string): boolean {
-  if (!rawUrl || typeof rawUrl !== "string") return false;
-  try {
-    const parsed = new URL(rawUrl);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Formats a provider or extracts the domain name safely.
- */
-export function formatProvider(provider: string | null, url: string): string {
-  if (provider && provider.trim().length > 0) {
-    return provider.trim();
-  }
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname.replace(/^www\./, "");
-  } catch {
-    return "External";
-  }
-}
+  | {
+      success: false;
+      data: null;
+      error: { code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT" | "DATABASE_ERROR" | "INTERNAL_ERROR"; message: string };
+    };
 
 /**
  * Retrieves all resources for the admin dashboard.
@@ -159,6 +154,325 @@ export async function getAdminResources(
           pending: pendingCount,
           rejected: rejectedCount,
         },
+      },
+      error: null,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected internal error";
+    return {
+      success: false,
+      data: null,
+      error: { code: "INTERNAL_ERROR", message },
+    };
+  }
+}
+
+/**
+ * Retrieves a single resource by its UUID for admin display or editing.
+ */
+export async function getAdminResourceById(
+  id: string,
+  client?: SupabaseClient<Database>
+): Promise<ServiceResult<AdminResourceSummary>> {
+  if (!id || !UUID_REGEX.test(id)) {
+    return {
+      success: false,
+      data: null,
+      error: { code: "BAD_REQUEST", message: "Invalid resource ID format. Must be a valid UUID." },
+    };
+  }
+
+  try {
+    const supabase = client || getSupabaseAdminServerClient();
+
+    const { data, error } = await supabase
+      .from("resources")
+      .select(`
+        id,
+        title,
+        url,
+        type,
+        provider,
+        description,
+        status,
+        verified_by,
+        verified_at,
+        created_at,
+        topic_resources (
+          learning_topics (
+            id,
+            normalized_title
+          )
+        )
+      `)
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to query resource: ${error.message}` },
+      };
+    }
+
+    if (!data) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: `Resource with ID '${id}' was not found.` },
+      };
+    }
+
+    let topic: { id: string; normalizedTitle: string } | null = null;
+    if (Array.isArray(data.topic_resources) && data.topic_resources.length > 0) {
+      const tr = data.topic_resources[0];
+      const lt = tr.learning_topics as { id: string; normalized_title: string } | null;
+      if (lt && lt.id && lt.normalized_title) {
+        topic = {
+          id: lt.id,
+          normalizedTitle: lt.normalized_title,
+        };
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        id: data.id,
+        title: data.title,
+        url: data.url,
+        isSafeUrl: isSafeUrl(data.url),
+        type: data.type as ResourceType,
+        provider: formatProvider(data.provider, data.url),
+        description: data.description || null,
+        status: data.status as ResourceStatus,
+        verifiedBy: data.verified_by || null,
+        verifiedAt: data.verified_at || null,
+        createdAt: data.created_at || new Date().toISOString(),
+        topic,
+      },
+      error: null,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected internal error";
+    return {
+      success: false,
+      data: null,
+      error: { code: "INTERNAL_ERROR", message },
+    };
+  }
+}
+
+/**
+ * Creates a new learning resource in the catalog.
+ * Strictly forces status = 'pending', verified_by = null, verified_at = null.
+ */
+export async function createAdminResource(
+  input: ValidatedResourceInput,
+  client?: SupabaseClient<Database>
+): Promise<ServiceResult<AdminResourceSummary>> {
+  try {
+    const supabase = client || getSupabaseAdminServerClient();
+
+    const { data, error } = await supabase
+      .from("resources")
+      .insert({
+        title: input.title,
+        url: input.url,
+        type: input.type,
+        provider: input.provider,
+        description: input.description,
+        status: "pending",
+        verified_by: null,
+        verified_at: null,
+      })
+      .select(`
+        id,
+        title,
+        url,
+        type,
+        provider,
+        description,
+        status,
+        verified_by,
+        verified_at,
+        created_at
+      `)
+      .single();
+
+    if (error) {
+      if (error.code === "23505") {
+        return {
+          success: false,
+          data: null,
+          error: {
+            code: "CONFLICT",
+            message: "A resource with this URL already exists in the catalog.",
+          },
+        };
+      }
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: "DATABASE_ERROR",
+          message: `Failed to create resource: ${error.message}`,
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        id: data.id,
+        title: data.title,
+        url: data.url,
+        isSafeUrl: isSafeUrl(data.url),
+        type: data.type as ResourceType,
+        provider: formatProvider(data.provider, data.url),
+        description: data.description || null,
+        status: data.status as ResourceStatus,
+        verifiedBy: data.verified_by || null,
+        verifiedAt: data.verified_at || null,
+        createdAt: data.created_at || new Date().toISOString(),
+        topic: null,
+      },
+      error: null,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected internal error";
+    return {
+      success: false,
+      data: null,
+      error: { code: "INTERNAL_ERROR", message },
+    };
+  }
+}
+
+/**
+ * Updates an existing learning resource's metadata.
+ * Strictly updates only: title, url, type, provider, description.
+ * Preserves existing status, verified_by, verified_at, and created_at.
+ */
+export async function updateAdminResource(
+  id: string,
+  input: ValidatedResourceInput,
+  client?: SupabaseClient<Database>
+): Promise<ServiceResult<AdminResourceSummary>> {
+  if (!id || !UUID_REGEX.test(id)) {
+    return {
+      success: false,
+      data: null,
+      error: { code: "BAD_REQUEST", message: "Invalid resource ID format. Must be a valid UUID." },
+    };
+  }
+
+  try {
+    const supabase = client || getSupabaseAdminServerClient();
+
+    // 1. Verify existence and retrieve current verification status
+    const { data: existing, error: fetchError } = await supabase
+      .from("resources")
+      .select("id, status, verified_by, verified_at")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (fetchError) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to locate resource: ${fetchError.message}` },
+      };
+    }
+
+    if (!existing) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: `Resource with ID '${id}' was not found.` },
+      };
+    }
+
+    // 2. Perform metadata update preserving verification integrity
+    const { data, error: updateError } = await supabase
+      .from("resources")
+      .update({
+        title: input.title,
+        url: input.url,
+        type: input.type,
+        provider: input.provider,
+        description: input.description,
+      })
+      .eq("id", id)
+      .select(`
+        id,
+        title,
+        url,
+        type,
+        provider,
+        description,
+        status,
+        verified_by,
+        verified_at,
+        created_at,
+        topic_resources (
+          learning_topics (
+            id,
+            normalized_title
+          )
+        )
+      `)
+      .single();
+
+    if (updateError) {
+      if (updateError.code === "23505") {
+        return {
+          success: false,
+          data: null,
+          error: {
+            code: "CONFLICT",
+            message: "A resource with this URL already exists in the catalog.",
+          },
+        };
+      }
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: "DATABASE_ERROR",
+          message: `Failed to update resource: ${updateError.message}`,
+        },
+      };
+    }
+
+    let topic: { id: string; normalizedTitle: string } | null = null;
+    if (Array.isArray(data.topic_resources) && data.topic_resources.length > 0) {
+      const tr = data.topic_resources[0];
+      const lt = tr.learning_topics as { id: string; normalized_title: string } | null;
+      if (lt && lt.id && lt.normalized_title) {
+        topic = {
+          id: lt.id,
+          normalizedTitle: lt.normalized_title,
+        };
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        id: data.id,
+        title: data.title,
+        url: data.url,
+        isSafeUrl: isSafeUrl(data.url),
+        type: data.type as ResourceType,
+        provider: formatProvider(data.provider, data.url),
+        description: data.description || null,
+        status: data.status as ResourceStatus,
+        verifiedBy: data.verified_by || null,
+        verifiedAt: data.verified_at || null,
+        createdAt: data.created_at || new Date().toISOString(),
+        topic,
       },
       error: null,
     };
