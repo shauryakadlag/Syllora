@@ -3,8 +3,14 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { Edit3, ArrowLeft, AlertCircle, BookOpen } from "lucide-react";
 import { verifyAdminSession } from "@/lib/auth/admin";
-import { getAdminResourceById, UUID_REGEX } from "@/lib/services/admin-resources";
+import {
+  getAdminResourceById,
+  getAdminResourceTopics,
+  getAdminPublishedTopics,
+  UUID_REGEX,
+} from "@/lib/services/admin-resources";
 import { ResourceForm } from "@/components/admin/resource-form";
+import { ResourceTopicLinks } from "@/components/admin/resource-topic-links";
 import { LogoutButton } from "@/components/admin/logout-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,9 +43,13 @@ export default async function EditAdminResourcePage({ params }: EditResourcePage
     notFound();
   }
 
-  const result = await getAdminResourceById(id);
+  const [resourceResult, linkedTopicsResult, publishedTopicsResult] = await Promise.all([
+    getAdminResourceById(id),
+    getAdminResourceTopics(id),
+    getAdminPublishedTopics(),
+  ]);
 
-  if (!result.success || !result.data) {
+  if (!resourceResult.success || !resourceResult.data) {
     return (
       <div className="container mx-auto max-w-3xl px-4 py-12 space-y-6 text-center">
         <Card className="border-border/80 p-8 space-y-4">
@@ -63,7 +73,9 @@ export default async function EditAdminResourcePage({ params }: EditResourcePage
     );
   }
 
-  const resource = result.data;
+  const resource = resourceResult.data;
+  const linkedTopics = linkedTopicsResult.success ? linkedTopicsResult.data : [];
+  const publishedTopics = publishedTopicsResult.success ? publishedTopicsResult.data : [];
   const { admin } = authResult;
 
   return (
@@ -112,8 +124,15 @@ export default async function EditAdminResourcePage({ params }: EditResourcePage
         </div>
       </div>
 
-      {/* Edit Form */}
+      {/* Edit Metadata Form */}
       <ResourceForm mode="edit" initialData={resource} />
+
+      {/* Curriculum Topic Links Section */}
+      <ResourceTopicLinks
+        resourceId={resource.id}
+        initialLinkedTopics={linkedTopics}
+        availableTopics={publishedTopics}
+      />
     </div>
   );
 }

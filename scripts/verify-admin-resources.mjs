@@ -124,7 +124,7 @@ async function runTests() {
   }
 
   console.log("================================================================================");
-  console.log("Syllora Phase 7F-C — Resource Verification & Rejection Moderation");
+  console.log("Syllora Phase 7F-D — Admin Resource Topic Linking");
   console.log("================================================================================\n");
 
   const seededVerifiedId = "7d5c1632-7274-4dc0-8f15-939f2e9f585b";
@@ -236,6 +236,52 @@ async function runTests() {
       },
     });
     assert(spoofedReject.status === 401, `Spoofed cookie on POST /api/admin/resources/[id]/reject returns 401 Unauthorized (${spoofedReject.status})`);
+
+    // 1.12 GET /api/admin/resources/[id]/topics without session
+    const unauthGetTopics = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/topics`);
+    assert(unauthGetTopics.status === 401, `Unauthenticated GET /api/admin/resources/[id]/topics returns 401 Unauthorized (${unauthGetTopics.status})`);
+
+    // 1.13 POST /api/admin/resources/[id]/topics without session
+    const unauthPostTopic = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/topics`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topicId: "8921767b-4a11-4fe0-8504-0d5cc02b0465" }),
+    });
+    assert(unauthPostTopic.status === 401, `Unauthenticated POST /api/admin/resources/[id]/topics returns 401 Unauthorized (${unauthPostTopic.status})`);
+
+    // 1.14 DELETE /api/admin/resources/[id]/topics/[topicId] without session
+    const unauthDeleteTopic = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/topics/8921767b-4a11-4fe0-8504-0d5cc02b0465`, {
+      method: "DELETE",
+    });
+    assert(unauthDeleteTopic.status === 401, `Unauthenticated DELETE /api/admin/resources/[id]/topics/[topicId] returns 401 Unauthorized (${unauthDeleteTopic.status})`);
+
+    // 1.15 Spoofed token on GET /api/admin/resources/[id]/topics
+    const spoofedGetTopics = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/topics`, {
+      headers: {
+        Cookie: "sb-enxbvqlaasbiqywxkmfu-auth-token=fake_jwt_cookie",
+      },
+    });
+    assert(spoofedGetTopics.status === 401, `Spoofed cookie on GET /api/admin/resources/[id]/topics returns 401 Unauthorized (${spoofedGetTopics.status})`);
+
+    // 1.16 Spoofed token on POST /api/admin/resources/[id]/topics
+    const spoofedPostTopic = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/topics`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: "sb-enxbvqlaasbiqywxkmfu-auth-token=fake_jwt_cookie",
+      },
+      body: JSON.stringify({ topicId: "8921767b-4a11-4fe0-8504-0d5cc02b0465" }),
+    });
+    assert(spoofedPostTopic.status === 401, `Spoofed cookie on POST /api/admin/resources/[id]/topics returns 401 Unauthorized (${spoofedPostTopic.status})`);
+
+    // 1.17 Spoofed token on DELETE /api/admin/resources/[id]/topics/[topicId]
+    const spoofedDeleteTopic = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/topics/8921767b-4a11-4fe0-8504-0d5cc02b0465`, {
+      method: "DELETE",
+      headers: {
+        Cookie: "sb-enxbvqlaasbiqywxkmfu-auth-token=fake_jwt_cookie",
+      },
+    });
+    assert(spoofedDeleteTopic.status === 401, `Spoofed cookie on DELETE /api/admin/resources/[id]/topics/[topicId] returns 401 Unauthorized (${spoofedDeleteTopic.status})`);
 
     // -------------------------------------------------------------------------
     // TEST SUITE 2: Server-Side Validation Rules & Protocols
@@ -416,23 +462,82 @@ async function runTests() {
     assert(moderationUiSource.includes("handleVerify") && moderationUiSource.includes("handleReject"), "resource-moderation-actions handles verify and reject actions");
     assert(moderationUiSource.includes("confirmingReject"), "resource-moderation-actions requires confirmation before rejection");
 
+    // Phase 7F-D: Topic linking service functions & routes
+    assert(adminServiceSource.includes("export async function getAdminResourceTopics"), "lib/services/admin-resources.ts exports getAdminResourceTopics");
+    assert(adminServiceSource.includes("export async function getAdminPublishedTopics"), "lib/services/admin-resources.ts exports getAdminPublishedTopics");
+    assert(adminServiceSource.includes("export async function linkAdminResourceTopic"), "lib/services/admin-resources.ts exports linkAdminResourceTopic");
+    assert(adminServiceSource.includes("export async function unlinkAdminResourceTopic"), "lib/services/admin-resources.ts exports unlinkAdminResourceTopic");
+
+    const topicsRoutePath = path.join(process.cwd(), "app", "api", "admin", "resources", "[id]", "topics", "route.ts");
+    assert(fs.existsSync(topicsRoutePath), "Dedicated route app/api/admin/resources/[id]/topics/route.ts exists");
+    const topicsRouteSource = fs.readFileSync(topicsRoutePath, "utf8");
+    assert(topicsRouteSource.includes("export async function GET"), "Topics route handler implements GET");
+    assert(topicsRouteSource.includes("export async function POST"), "Topics route handler implements POST");
+    assert(topicsRouteSource.includes("verifyAdminSession"), "Topics route handler uses verifyAdminSession");
+
+    const topicUnlinkRoutePath = path.join(process.cwd(), "app", "api", "admin", "resources", "[id]", "topics", "[topicId]", "route.ts");
+    assert(fs.existsSync(topicUnlinkRoutePath), "Dedicated route app/api/admin/resources/[id]/topics/[topicId]/route.ts exists");
+    const topicUnlinkRouteSource = fs.readFileSync(topicUnlinkRoutePath, "utf8");
+    assert(topicUnlinkRouteSource.includes("export async function DELETE"), "Topic unlink route handler implements DELETE");
+    assert(topicUnlinkRouteSource.includes("verifyAdminSession"), "Topic unlink route handler uses verifyAdminSession");
+
+    const topicLinksUiPath = path.join(process.cwd(), "components", "admin", "resource-topic-links.tsx");
+    assert(fs.existsSync(topicLinksUiPath), "components/admin/resource-topic-links.tsx exists");
+    const topicLinksUiSource = fs.readFileSync(topicLinksUiPath, "utf8");
+    assert(topicLinksUiSource.includes('"use client"') || topicLinksUiSource.includes("'use client'"), "resource-topic-links is a client component");
+    assert(topicLinksUiSource.includes("handleLinkTopic") && topicLinksUiSource.includes("handleUnlinkTopic"), "resource-topic-links handles link and unlink actions");
+    assert(topicLinksUiSource.includes("confirmUnlinkId"), "resource-topic-links requires confirmation before unlinking");
+
+    const editPagePath = path.join(process.cwd(), "app", "admin", "resources", "[id]", "edit", "page.tsx");
+    const editPageSource = fs.readFileSync(editPagePath, "utf8");
+    assert(editPageSource.includes("ResourceTopicLinks"), "Admin edit page renders ResourceTopicLinks component");
+    assert(editPageSource.includes("getAdminResourceTopics"), "Admin edit page loads linked topics via getAdminResourceTopics");
+    assert(editPageSource.includes("getAdminPublishedTopics"), "Admin edit page loads published topics via getAdminPublishedTopics");
+
+    // Topic endpoint UUID & parameter validation
+    const badIdGetTopics = await fetch(`${BASE_URL}/api/admin/resources/not-a-uuid/topics`);
+    assert(badIdGetTopics.status === 400 || badIdGetTopics.status === 401, `Malformed resource ID on GET topics rejected (${badIdGetTopics.status})`);
+
+    const badIdPostTopics = await fetch(`${BASE_URL}/api/admin/resources/not-a-uuid/topics`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topicId: "8921767b-4a11-4fe0-8504-0d5cc02b0465" }),
+    });
+    assert(badIdPostTopics.status === 400 || badIdPostTopics.status === 401, `Malformed resource ID on POST topics rejected (${badIdPostTopics.status})`);
+
+    const badIdDeleteTopic = await fetch(`${BASE_URL}/api/admin/resources/not-a-uuid/topics/8921767b-4a11-4fe0-8504-0d5cc02b0465`, {
+      method: "DELETE",
+    });
+    assert(badIdDeleteTopic.status === 400 || badIdDeleteTopic.status === 401, `Malformed resource ID on DELETE topic link rejected (${badIdDeleteTopic.status})`);
+
+    const badTopicIdDelete = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/topics/not-a-uuid`, {
+      method: "DELETE",
+    });
+    assert(badTopicIdDelete.status === 400 || badTopicIdDelete.status === 401, `Malformed topic ID on DELETE topic link rejected (${badTopicIdDelete.status})`);
+
     // -------------------------------------------------------------------------
     // TEST SUITE 3: Database RLS Mutation Policies
     // -------------------------------------------------------------------------
     console.log("\n--- Test Suite 3: Database RLS Mutation Policies ---");
 
     const policyRows = runSupabaseQuery(`
-      SELECT policyname, cmd, qual, with_check 
+      SELECT tablename, policyname, cmd, qual, with_check 
       FROM pg_policies 
-      WHERE tablename = 'resources'
-      ORDER BY policyname;
+      WHERE tablename IN ('resources', 'topic_resources')
+      ORDER BY tablename, policyname;
     `);
 
-    const policyMap = new Map(policyRows.map((r) => [r.policyname, r]));
-    assert(policyMap.has("Admins insert resources"), "Policy 'Admins insert resources' exists on resources table");
-    assert(policyMap.has("Admins update resources"), "Policy 'Admins update resources' exists on resources table");
-    assert(policyMap.has("Admins view all resources"), "Policy 'Admins view all resources' exists on resources table");
-    assert(policyMap.has("Public view verified resources"), "Policy 'Public view verified resources' exists on resources table");
+    const resourcePolicies = new Set(policyRows.filter((r) => r.tablename === "resources").map((r) => r.policyname));
+    assert(resourcePolicies.has("Admins insert resources"), "Policy 'Admins insert resources' exists on resources table");
+    assert(resourcePolicies.has("Admins update resources"), "Policy 'Admins update resources' exists on resources table");
+    assert(resourcePolicies.has("Admins view all resources"), "Policy 'Admins view all resources' exists on resources table");
+    assert(resourcePolicies.has("Public view verified resources"), "Policy 'Public view verified resources' exists on resources table");
+
+    const topicResourcePolicies = new Set(policyRows.filter((r) => r.tablename === "topic_resources").map((r) => r.policyname));
+    assert(topicResourcePolicies.has("Admins insert topic_resources"), "Policy 'Admins insert topic_resources' exists on topic_resources table");
+    assert(topicResourcePolicies.has("Admins delete topic_resources"), "Policy 'Admins delete topic_resources' exists on topic_resources table");
+    assert(topicResourcePolicies.has("Admins view all topic_resources"), "Policy 'Admins view all topic_resources' exists on topic_resources table");
+    assert(topicResourcePolicies.has("Public view topic_resources"), "Policy 'Public view topic_resources' exists on topic_resources table");
 
     // Anon INSERT attempt directly via Supabase client (should be rejected by RLS)
     const { error: anonInsertError } = await supabase.from("resources").insert({
@@ -443,7 +548,7 @@ async function runTests() {
     });
     assert(
       anonInsertError !== null,
-      `Anonymous client INSERT is blocked by RLS (error: ${anonInsertError?.code || "permission denied"})`
+      `Anonymous client INSERT on resources is blocked by RLS (error: ${anonInsertError?.code || "permission denied"})`
     );
 
     // Anon UPDATE attempt directly via Supabase client (should affect 0 rows or error)
@@ -454,7 +559,30 @@ async function runTests() {
       .select();
     assert(
       anonUpdateError !== null || (anonUpdateData && anonUpdateData.length === 0),
-      `Anonymous client UPDATE is blocked by RLS (affected rows: ${anonUpdateData ? anonUpdateData.length : 0})`
+      `Anonymous client UPDATE on resources is blocked by RLS (affected rows: ${anonUpdateData ? anonUpdateData.length : 0})`
+    );
+
+    // Anon INSERT on topic_resources attempt directly via Supabase client (should be rejected by RLS)
+    const { error: anonTopicInsertError } = await supabase.from("topic_resources").insert({
+      learning_topic_id: "8921767b-4a11-4fe0-8504-0d5cc02b0465",
+      resource_id: seededVerifiedId,
+      ranking_score: 999,
+      is_featured: true,
+    });
+    assert(
+      anonTopicInsertError !== null,
+      `Anonymous client INSERT on topic_resources is blocked by RLS (error: ${anonTopicInsertError?.code || "permission denied"})`
+    );
+
+    // Anon DELETE on topic_resources attempt directly via Supabase client (should affect 0 rows or error)
+    const { data: anonTopicDeleteData, error: anonTopicDeleteError } = await supabase
+      .from("topic_resources")
+      .delete()
+      .eq("resource_id", seededVerifiedId)
+      .select();
+    assert(
+      anonTopicDeleteError !== null || (anonTopicDeleteData && anonTopicDeleteData.length === 0),
+      `Anonymous client DELETE on topic_resources is blocked by RLS (affected rows: ${anonTopicDeleteData ? anonTopicDeleteData.length : 0})`
     );
 
     // -------------------------------------------------------------------------
@@ -593,7 +721,42 @@ async function runTests() {
       )
       SELECT count(*) INTO TEMP TABLE t_rereject_blocked FROM upd;
 
-      -- 13. Retrieve verification counts confirming all states and audit columns
+      -- 13. Phase 7F-D: Link simulation pending resource A to published topic
+      INSERT INTO public.topic_resources (learning_topic_id, resource_id, ranking_score, is_featured, assigned_at)
+      VALUES ('8921767b-4a11-4fe0-8504-0d5cc02b0465', '11111111-1111-1111-1111-111111111111', 0, false, NOW());
+
+      SELECT count(*) INTO TEMP TABLE t_topic_link_ok
+      FROM public.topic_resources
+      WHERE learning_topic_id = '8921767b-4a11-4fe0-8504-0d5cc02b0465'
+        AND resource_id = '11111111-1111-1111-1111-111111111111'
+        AND ranking_score = 0
+        AND is_featured = false;
+
+      -- 14. Phase 7F-D: Duplicate topic link attempt blocked by unique composite PK
+      DO $$
+      BEGIN
+        BEGIN
+          INSERT INTO public.topic_resources (learning_topic_id, resource_id, ranking_score, is_featured)
+          VALUES ('8921767b-4a11-4fe0-8504-0d5cc02b0465', '11111111-1111-1111-1111-111111111111', 0, false);
+          CREATE TEMP TABLE t_dup_blocked (val int);
+        EXCEPTION
+          WHEN unique_violation THEN
+            CREATE TEMP TABLE t_dup_blocked (val int);
+            INSERT INTO t_dup_blocked VALUES (1);
+        END;
+      END $$;
+
+      -- 15. Phase 7F-D: Unlink topic from resource (delete topic_resources row)
+      DELETE FROM public.topic_resources
+      WHERE learning_topic_id = '8921767b-4a11-4fe0-8504-0d5cc02b0465'
+        AND resource_id = '11111111-1111-1111-1111-111111111111';
+
+      SELECT count(*) INTO TEMP TABLE t_topic_link_deleted
+      FROM public.topic_resources
+      WHERE learning_topic_id = '8921767b-4a11-4fe0-8504-0d5cc02b0465'
+        AND resource_id = '11111111-1111-1111-1111-111111111111';
+
+      -- 16. Retrieve verification counts confirming all states and audit columns
       SELECT 
         (SELECT count(*) FROM public.resources 
          WHERE url = 'https://example.com/sim-test-structure-guide' 
@@ -612,6 +775,9 @@ async function runTests() {
         (SELECT count FROM t_reject_pending_ok) as reject_pending_ok,
         (SELECT count FROM t_reject_to_verify_blocked) as reject_to_verify_blocked,
         (SELECT count FROM t_rereject_blocked) as rereject_blocked,
+        (SELECT count FROM t_topic_link_ok) as topic_link_ok,
+        (SELECT coalesce(sum(val), 0) FROM t_dup_blocked) as duplicate_link_blocked,
+        (SELECT count FROM t_topic_link_deleted) as topic_link_deleted,
         (SELECT count(*) FROM public.resources
          WHERE id = '11111111-1111-1111-1111-111111111111'
            AND status = 'verified'
@@ -662,6 +828,18 @@ async function runTests() {
       "rejected resource cannot be rejected again (conditional update matches 0 rows)"
     );
     assert(
+      Number(simState.topic_link_ok) === 1,
+      "Active admin can link resource to published topic with ranking_score=0 and is_featured=false"
+    );
+    assert(
+      Number(simState.duplicate_link_blocked) === 1,
+      "Duplicate topic_resources link is blocked by unique composite primary key constraint"
+    );
+    assert(
+      Number(simState.topic_link_deleted) === 0,
+      "Active admin can delete topic_resources link (relationship removed without deleting resource/topic)"
+    );
+    assert(
       Number(simState.audit_verified_correct) === 1,
       "Verification audit fields remain correct: verified_by is admin UUID and verified_at is set"
     );
@@ -670,15 +848,24 @@ async function runTests() {
       "Rejection audit fields remain correct: verified_by is NULL and verified_at is NULL"
     );
 
-    // Verify rollback completed cleanly: confirm simulation resources do NOT exist
+    // Verify rollback completed cleanly: confirm simulation resources and links do NOT exist
     const checkRolledBack = runSupabaseQuery(`
-      SELECT count(*) as leftover FROM public.resources WHERE url IN (
-        'https://example.com/sim-test-structure-guide',
-        'https://example.com/sim-mod-pending-a',
-        'https://example.com/sim-mod-pending-b'
-      );
+      SELECT 
+        (SELECT count(*) FROM public.resources WHERE url IN (
+          'https://example.com/sim-test-structure-guide',
+          'https://example.com/sim-mod-pending-a',
+          'https://example.com/sim-mod-pending-b'
+        )) as leftover_resources,
+        (SELECT count(*) FROM public.topic_resources WHERE resource_id IN (
+          '11111111-1111-1111-1111-111111111111',
+          '22222222-2222-2222-2222-222222222222'
+        )) as leftover_links;
     `);
-    assert(Number(checkRolledBack[0]?.leftover || 0) === 0, `Rollback confirmed: simulation test resources cleanly removed`);
+    assert(
+      Number(checkRolledBack[0]?.leftover_resources || 0) === 0 &&
+      Number(checkRolledBack[0]?.leftover_links || 0) === 0,
+      `Rollback confirmed: simulation test resources and topic links cleanly removed`
+    );
 
     // Confirm inactive audit account remains inactive
     const auditAccountCheck = runSupabaseQuery(`
@@ -746,8 +933,11 @@ async function runTests() {
       "app/api/admin/resources/[id]/route.ts",
       "app/api/admin/resources/[id]/verify/route.ts",
       "app/api/admin/resources/[id]/reject/route.ts",
+      "app/api/admin/resources/[id]/topics/route.ts",
+      "app/api/admin/resources/[id]/topics/[topicId]/route.ts",
       "components/admin/resource-form.tsx",
       "components/admin/resource-moderation-actions.tsx",
+      "components/admin/resource-topic-links.tsx",
     ];
 
     let foundServiceKey = false;
@@ -761,7 +951,7 @@ async function runTests() {
         }
       }
     }
-    assert(!foundServiceKey, "Zero SUPABASE_SERVICE_ROLE_KEY references in Phase 7F-C code");
+    assert(!foundServiceKey, "Zero SUPABASE_SERVICE_ROLE_KEY references in Phase 7F-D code");
 
     // Check that DELETE /api/admin/resources/[id] is not implemented
     const deleteRes = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}`, {
@@ -788,6 +978,24 @@ async function runTests() {
     assert(
       deleteRejectRes.status === 405 || deleteRejectRes.status === 404,
       `DELETE /api/admin/resources/[id]/reject is not implemented (${deleteRejectRes.status})`
+    );
+
+    // Check that PUT /api/admin/resources/[id]/topics is not implemented
+    const putTopicsRes = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/topics`, {
+      method: "PUT",
+    });
+    assert(
+      putTopicsRes.status === 405 || putTopicsRes.status === 404,
+      `PUT /api/admin/resources/[id]/topics is not implemented (${putTopicsRes.status})`
+    );
+
+    // Check that POST /api/admin/resources/[id]/topics/[topicId] is not implemented
+    const postTopicUnlinkRes = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/topics/8921767b-4a11-4fe0-8504-0d5cc02b0465`, {
+      method: "POST",
+    });
+    assert(
+      postTopicUnlinkRes.status === 405 || postTopicUnlinkRes.status === 404,
+      `POST /api/admin/resources/[id]/topics/[topicId] is not implemented (${postTopicUnlinkRes.status})`
     );
 
   } catch (err) {

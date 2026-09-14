@@ -773,3 +773,501 @@ export async function rejectAdminResource(
     };
   }
 }
+
+// -----------------------------------------------------------------------------
+// Phase 7F-D: Resource-Topic Linking Service
+// -----------------------------------------------------------------------------
+
+export interface AdminLinkedTopic {
+  id: string; // learning_topic_id
+  normalizedTitle: string;
+  displayOrder: number;
+  status: string;
+  rankingScore: number;
+  isFeatured: boolean;
+  assignedAt: string;
+  syllabusItemText: string | null;
+  unitNumber: string | null;
+  unitName: string | null;
+  courseCode: string | null;
+  subjectName: string | null;
+}
+
+export interface AdminPublishedTopicOption {
+  id: string;
+  normalizedTitle: string;
+  displayOrder: number;
+  syllabusItemText: string | null;
+  unitNumber: string | null;
+  unitName: string | null;
+  courseCode: string | null;
+  subjectName: string | null;
+}
+
+export interface AdminTopicLinkResult {
+  resourceId: string;
+  topicId: string;
+  rankingScore: number;
+  isFeatured: boolean;
+  topicTitle: string;
+}
+
+export interface AdminTopicUnlinkResult {
+  resourceId: string;
+  topicId: string;
+  unlinked: boolean;
+}
+
+/**
+ * Retrieves all published topics currently linked to a given resource.
+ * Authenticated active administrators only.
+ */
+export async function getAdminResourceTopics(
+  resourceId: string,
+  client?: SupabaseClient<Database>
+): Promise<ServiceResult<AdminLinkedTopic[]>> {
+  if (!resourceId || !UUID_REGEX.test(resourceId)) {
+    return {
+      success: false,
+      data: null,
+      error: { code: "BAD_REQUEST", message: "Invalid resource ID format. Must be a valid UUID." },
+    };
+  }
+
+  try {
+    const supabase = client || getSupabaseAdminServerClient();
+
+    // 1. Verify resource existence
+    const { data: resource, error: resError } = await supabase
+      .from("resources")
+      .select("id")
+      .eq("id", resourceId)
+      .maybeSingle();
+
+    if (resError) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to locate resource: ${resError.message}` },
+      };
+    }
+
+    if (!resource) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: `Resource with ID '${resourceId}' was not found.` },
+      };
+    }
+
+    // 2. Query linked topics with full curriculum context
+    const { data, error } = await supabase
+      .from("topic_resources")
+      .select(`
+        learning_topic_id,
+        ranking_score,
+        is_featured,
+        assigned_at,
+        learning_topics!inner (
+          id,
+          normalized_title,
+          display_order,
+          status,
+          syllabus_items (
+            id,
+            official_text,
+            units (
+              id,
+              unit_number,
+              unit_name,
+              subjects (
+                id,
+                course_code,
+                subject_name
+              )
+            )
+          )
+        )
+      `)
+      .eq("resource_id", resourceId)
+      .eq("learning_topics.status", "published")
+      .order("assigned_at", { ascending: true });
+
+    if (error) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to query linked topics: ${error.message}` },
+      };
+    }
+
+    const linkedTopics: AdminLinkedTopic[] = [];
+
+    for (const row of data || []) {
+      const lt = row.learning_topics as any;
+      if (!lt) continue;
+
+      const si = lt.syllabus_items as any;
+      const unit = si?.units as any;
+      const subject = unit?.subjects as any;
+
+      linkedTopics.push({
+        id: lt.id,
+        normalizedTitle: lt.normalized_title,
+        displayOrder: lt.display_order ?? 0,
+        status: lt.status ?? "published",
+        rankingScore: row.ranking_score ?? 0,
+        isFeatured: row.is_featured ?? false,
+        assignedAt: row.assigned_at || new Date().toISOString(),
+        syllabusItemText: si?.official_text || null,
+        unitNumber: unit?.unit_number || null,
+        unitName: unit?.unit_name || null,
+        courseCode: subject?.course_code || null,
+        subjectName: subject?.subject_name || null,
+      });
+    }
+
+    return {
+      success: true,
+      data: linkedTopics,
+      error: null,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected internal error";
+    return {
+      success: false,
+      data: null,
+      error: { code: "INTERNAL_ERROR", message },
+    };
+  }
+}
+
+/**
+ * Retrieves all published topics available in the curriculum.
+ * Authenticated active administrators only.
+ */
+export async function getAdminPublishedTopics(
+  client?: SupabaseClient<Database>
+): Promise<ServiceResult<AdminPublishedTopicOption[]>> {
+  try {
+    const supabase = client || getSupabaseAdminServerClient();
+
+    const { data, error } = await supabase
+      .from("learning_topics")
+      .select(`
+        id,
+        normalized_title,
+        display_order,
+        status,
+        syllabus_items (
+          id,
+          official_text,
+          units (
+            id,
+            unit_number,
+            unit_name,
+            subjects (
+              id,
+              course_code,
+              subject_name
+            )
+          )
+        )
+      `)
+      .eq("status", "published")
+      .order("normalized_title", { ascending: true });
+
+    if (error) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to fetch published topics: ${error.message}` },
+      };
+    }
+
+    const topics: AdminPublishedTopicOption[] = [];
+
+    for (const lt of data || []) {
+      const si = (lt as any).syllabus_items;
+      const unit = si?.units;
+      const subject = unit?.subjects;
+
+      topics.push({
+        id: lt.id,
+        normalizedTitle: lt.normalized_title,
+        displayOrder: lt.display_order ?? 0,
+        syllabusItemText: si?.official_text || null,
+        unitNumber: unit?.unit_number || null,
+        unitName: unit?.unit_name || null,
+        courseCode: subject?.course_code || null,
+        subjectName: subject?.subject_name || null,
+      });
+    }
+
+    return {
+      success: true,
+      data: topics,
+      error: null,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected internal error";
+    return {
+      success: false,
+      data: null,
+      error: { code: "INTERNAL_ERROR", message },
+    };
+  }
+}
+
+/**
+ * Links an existing resource to an existing published learning topic.
+ * Invariants:
+ * 1. Resource must exist.
+ * 2. Topic must exist and have status = 'published'.
+ * 3. Duplicate relationship returns 409 CONFLICT.
+ * 4. Inserts with ranking_score = 0, is_featured = false.
+ * 5. Leaves resource status, verified_by, and verified_at completely unchanged.
+ */
+export async function linkAdminResourceTopic(
+  resourceId: string,
+  topicId: string,
+  client?: SupabaseClient<Database>
+): Promise<ServiceResult<AdminTopicLinkResult>> {
+  if (!resourceId || !UUID_REGEX.test(resourceId)) {
+    return {
+      success: false,
+      data: null,
+      error: { code: "BAD_REQUEST", message: "Invalid resource ID format. Must be a valid UUID." },
+    };
+  }
+
+  if (!topicId || !UUID_REGEX.test(topicId)) {
+    return {
+      success: false,
+      data: null,
+      error: { code: "BAD_REQUEST", message: "Invalid topic ID format. Must be a valid UUID." },
+    };
+  }
+
+  try {
+    const supabase = client || getSupabaseAdminServerClient();
+
+    // 1. Verify resource exists
+    const { data: resource, error: resError } = await supabase
+      .from("resources")
+      .select("id")
+      .eq("id", resourceId)
+      .maybeSingle();
+
+    if (resError) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to query resource: ${resError.message}` },
+      };
+    }
+
+    if (!resource) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: `Resource with ID '${resourceId}' was not found.` },
+      };
+    }
+
+    // 2. Verify learning topic exists and is published
+    const { data: topic, error: topicError } = await supabase
+      .from("learning_topics")
+      .select("id, status, normalized_title")
+      .eq("id", topicId)
+      .maybeSingle();
+
+    if (topicError) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to query topic: ${topicError.message}` },
+      };
+    }
+
+    if (!topic) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: `Learning topic with ID '${topicId}' was not found.` },
+      };
+    }
+
+    if (topic.status !== "published") {
+      return {
+        success: false,
+        data: null,
+        error: { code: "BAD_REQUEST", message: "Only published learning topics can be linked to resources." },
+      };
+    }
+
+    // 3. Check for duplicate relationship
+    const { data: existingLink, error: linkCheckError } = await supabase
+      .from("topic_resources")
+      .select("learning_topic_id")
+      .eq("resource_id", resourceId)
+      .eq("learning_topic_id", topicId)
+      .maybeSingle();
+
+    if (linkCheckError) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to check existing links: ${linkCheckError.message}` },
+      };
+    }
+
+    if (existingLink) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "CONFLICT", message: "This topic is already linked to the resource." },
+      };
+    }
+
+    // 4. Create relationship with ranking_score = 0, is_featured = false
+    const assignedAt = new Date().toISOString();
+    const { error: insertError } = await supabase
+      .from("topic_resources")
+      .insert({
+        resource_id: resourceId,
+        learning_topic_id: topicId,
+        ranking_score: 0,
+        is_featured: false,
+        assigned_at: assignedAt,
+      });
+
+    if (insertError) {
+      if (insertError.code === "23505") {
+        return {
+          success: false,
+          data: null,
+          error: { code: "CONFLICT", message: "This topic is already linked to the resource." },
+        };
+      }
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to link topic: ${insertError.message}` },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        resourceId,
+        topicId,
+        rankingScore: 0,
+        isFeatured: false,
+        topicTitle: topic.normalized_title,
+      },
+      error: null,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected internal error";
+    return {
+      success: false,
+      data: null,
+      error: { code: "INTERNAL_ERROR", message },
+    };
+  }
+}
+
+/**
+ * Removes an existing relationship between a resource and a learning topic.
+ * Invariants:
+ * 1. Validates UUIDs.
+ * 2. Deletes only the topic_resources relationship.
+ * 3. Never deletes the resource or the learning topic.
+ * 4. If relationship does not exist, returns NOT_FOUND.
+ */
+export async function unlinkAdminResourceTopic(
+  resourceId: string,
+  topicId: string,
+  client?: SupabaseClient<Database>
+): Promise<ServiceResult<AdminTopicUnlinkResult>> {
+  if (!resourceId || !UUID_REGEX.test(resourceId)) {
+    return {
+      success: false,
+      data: null,
+      error: { code: "BAD_REQUEST", message: "Invalid resource ID format. Must be a valid UUID." },
+    };
+  }
+
+  if (!topicId || !UUID_REGEX.test(topicId)) {
+    return {
+      success: false,
+      data: null,
+      error: { code: "BAD_REQUEST", message: "Invalid topic ID format. Must be a valid UUID." },
+    };
+  }
+
+  try {
+    const supabase = client || getSupabaseAdminServerClient();
+
+    // Check relationship existence
+    const { data: existingLink, error: fetchError } = await supabase
+      .from("topic_resources")
+      .select("learning_topic_id")
+      .eq("resource_id", resourceId)
+      .eq("learning_topic_id", topicId)
+      .maybeSingle();
+
+    if (fetchError) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to check relationship: ${fetchError.message}` },
+      };
+    }
+
+    if (!existingLink) {
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: "NOT_FOUND",
+          message: "Relationship not found. This topic is not linked to the specified resource.",
+        },
+      };
+    }
+
+    // Delete relationship
+    const { error: deleteError } = await supabase
+      .from("topic_resources")
+      .delete()
+      .eq("resource_id", resourceId)
+      .eq("learning_topic_id", topicId);
+
+    if (deleteError) {
+      return {
+        success: false,
+        data: null,
+        error: { code: "DATABASE_ERROR", message: `Failed to delete relationship: ${deleteError.message}` },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        resourceId,
+        topicId,
+        unlinked: true,
+      },
+      error: null,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected internal error";
+    return {
+      success: false,
+      data: null,
+      error: { code: "INTERNAL_ERROR", message },
+    };
+  }
+}
+
