@@ -15,6 +15,7 @@ export type Json =
 export type ResourceStatus = "pending" | "verified" | "rejected";
 export type ResourceType = "video" | "article" | "pdf" | "playlist" | "documentation";
 export type PublishStatus = "draft" | "published";
+export type ReportReason = "broken" | "misleading" | "irrelevant" | "other";
 
 export interface Database {
   public: {
@@ -358,6 +359,37 @@ export interface Database {
           }
         ];
       };
+      resource_reports: {
+        Row: {
+          id: string;
+          resource_id: string;
+          reason: ReportReason;
+          description: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          resource_id: string;
+          reason: ReportReason;
+          description?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          resource_id?: string;
+          reason?: ReportReason;
+          description?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "resource_reports_resource_id_fkey";
+            columns: ["resource_id"];
+            referencedRelation: "resources";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -388,3 +420,4 @@ export type AdminRow = Database["public"]["Tables"]["admins"]["Row"];
 export type LearningTopicRow = Database["public"]["Tables"]["learning_topics"]["Row"];
 export type ResourceRow = Database["public"]["Tables"]["resources"]["Row"];
 export type TopicResourceRow = Database["public"]["Tables"]["topic_resources"]["Row"];
+export type ResourceReportRow = Database["public"]["Tables"]["resource_reports"]["Row"];

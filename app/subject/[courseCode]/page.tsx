@@ -19,6 +19,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/breadcrumb";
+import { ReportResourceDialog } from "@/components/resources/report-resource-dialog";
 
 interface LearningResource {
   id: string;
@@ -465,21 +466,23 @@ export default function SubjectDetailPage() {
                                               </div>
                                               <div className="grid grid-cols-1 gap-1.5">
                                                 {topicResources.map((resource) => (
-                                                  <a
+                                                  <div
                                                     key={resource.id}
                                                     id={`resource-${resource.id}`}
-                                                    href={resource.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="scroll-mt-20 group/res flex items-center justify-between gap-2.5 rounded-md border border-border/70 bg-background/80 hover:bg-muted/40 hover:border-border px-2.5 py-2 text-xs transition-colors focus:outline-hidden focus:ring-2 focus:ring-primary/20"
-                                                    aria-label={`${resource.title} on ${resource.provider} (opens in a new tab)`}
+                                                    className="scroll-mt-20 group/res flex items-center justify-between gap-2.5 rounded-md border border-border/70 bg-background/80 hover:bg-muted/30 hover:border-border px-2.5 py-1.5 text-xs transition-colors"
                                                   >
-                                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                    <a
+                                                      href={resource.url}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className="flex items-center gap-2 min-w-0 flex-1 focus:outline-hidden focus:ring-1 focus:ring-primary/20 rounded py-0.5"
+                                                      aria-label={`${resource.title} on ${resource.provider} (opens in a new tab)`}
+                                                    >
                                                       {getResourceTypeIcon(resource.type)}
                                                       <span className="font-medium text-foreground group-hover/res:text-primary transition-colors truncate">
                                                         {resource.title}
                                                       </span>
-                                                    </div>
+                                                    </a>
                                                     <div className="flex items-center gap-1.5 shrink-0">
                                                       {resource.isFeatured && (
                                                         <Badge
@@ -496,12 +499,24 @@ export default function SubjectDetailPage() {
                                                       <span className="text-[10px] text-muted-foreground font-medium hidden sm:inline">
                                                         {resource.provider}
                                                       </span>
-                                                      <ExternalLink
-                                                        className="h-3 w-3 text-muted-foreground group-hover/res:text-foreground transition-colors"
-                                                        aria-hidden="true"
+                                                      <a
+                                                        href={resource.url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                                                        aria-label={`Open ${resource.title} in a new tab`}
+                                                      >
+                                                        <ExternalLink
+                                                          className="h-3 w-3"
+                                                          aria-hidden="true"
+                                                        />
+                                                      </a>
+                                                      <ReportResourceDialog
+                                                        resourceId={resource.id}
+                                                        resourceTitle={resource.title}
                                                       />
                                                     </div>
-                                                  </a>
+                                                  </div>
                                                 ))}
                                               </div>
                                             </div>
