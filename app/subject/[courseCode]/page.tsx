@@ -7,11 +7,20 @@ import {
   ArrowLeft,
   AlertCircle,
   RotateCw,
+  BookOpen,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/breadcrumb";
+
+interface LearningTopic {
+  id: string;
+  syllabusItemId: string;
+  normalizedTitle: string;
+  displayOrder: number;
+  status: string;
+}
 
 interface SyllabusItem {
   id: string;
@@ -41,6 +50,7 @@ export default function SubjectDetailPage() {
   const courseCodeParam = params?.courseCode || "";
 
   const [subject, setSubject] = useState<SubjectDetail | null>(null);
+  const [topicsByItem, setTopicsByItem] = useState<Record<string, LearningTopic[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusCode, setStatusCode] = useState<number>(200);
@@ -49,6 +59,7 @@ export default function SubjectDetailPage() {
     if (!courseCodeParam) return;
     setIsLoading(true);
     setError(null);
+    setTopicsByItem({});
     try {
       const res = await fetch(`/api/curriculum/subjects/${courseCodeParam}`);
       const json = await res.json();
@@ -70,6 +81,52 @@ export default function SubjectDetailPage() {
   useEffect(() => {
     fetchSubject();
   }, [fetchSubject]);
+
+  useEffect(() => {
+    if (!subject) return;
+
+    const items = subject.units.flatMap((u) => u.syllabusItems || []);
+    if (items.length === 0) return;
+
+    let isMounted = true;
+
+    async function loadTopics() {
+      try {
+        const topicPromises = items.map(async (item) => {
+          try {
+            const res = await fetch(`/api/curriculum/syllabus-items/${item.id}/topics`);
+            if (!res.ok) return { itemId: item.id, topics: [] };
+            const json = await res.json();
+            if (json.success && Array.isArray(json.data)) {
+              return { itemId: item.id, topics: json.data as LearningTopic[] };
+            }
+            return { itemId: item.id, topics: [] };
+          } catch {
+            return { itemId: item.id, topics: [] };
+          }
+        });
+
+        const results = await Promise.allSettled(topicPromises);
+        if (!isMounted) return;
+
+        const mapping: Record<string, LearningTopic[]> = {};
+        for (const res of results) {
+          if (res.status === "fulfilled" && res.value.topics.length > 0) {
+            mapping[res.value.itemId] = res.value.topics;
+          }
+        }
+        setTopicsByItem(mapping);
+      } catch {
+        // Gracefully preserve official syllabus even if topics network fails
+      }
+    }
+
+    loadTopics();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [subject]);
 
   useEffect(() => {
     if (subject) {
@@ -249,23 +306,62 @@ export default function SubjectDetailPage() {
 
                   <CardContent className="p-5 sm:p-6">
                     {unit.syllabusItems && unit.syllabusItems.length > 0 ? (
-                      <ol className="space-y-3.5 list-none">
-                        {unit.syllabusItems.map((item) => (
-                          <li
-                            key={item.id}
-                            className="flex items-start gap-3 text-sm text-foreground/90 leading-relaxed group"
-                          >
-                            <span
-                              className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground shrink-0 mt-0.5 group-hover:bg-primary/10 group-hover:text-primary transition-colors select-none"
-                              aria-hidden="true"
+                      <ol className="space-y-4 list-none">
+                        {unit.syllabusItems.map((item) => {
+                          const itemTopics = topicsByItem[item.id] || [];
+                          return (
+                            <li
+                              key={item.id}
+                              className="flex items-start gap-3 text-sm text-foreground/90 leading-relaxed group"
                             >
-                              {item.originalOrder}
-                            </span>
-                            <span className="flex-1 font-normal select-text break-words">
-                              {item.officialText}
-                            </span>
-                          </li>
-                        ))}
+                              <span
+                                className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground shrink-0 mt-0.5 group-hover:bg-primary/10 group-hover:text-primary transition-colors select-none"
+                                aria-hidden="true"
+                              >
+                                {item.originalOrder}
+                              </span>
+                              <div className="flex-1 min-w-0 space-y-2">
+                                <p className="font-normal select-text break-words text-foreground/90">
+                                  {item.officialText}
+                                </p>
+
+                                {/* Learning Topics (if published for this item) */}
+                                {itemTopics.length > 0 && (
+                                  <div
+                                    className="space-y-1.5 pt-0.5"
+                                    aria-label={`Learning topics for syllabus item ${item.originalOrder}`}
+                                  >
+                                    {itemTopics.map((topic) => (
+                                      <div
+                                        key={topic.id}
+                                        className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5 rounded-lg border border-primary/20 bg-primary/[0.03] dark:bg-primary/[0.07] px-3 py-2 text-xs transition-colors hover:border-primary/30"
+                                      >
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                          <BookOpen
+                                            className="h-3.5 w-3.5 text-primary"
+                                            aria-hidden="true"
+                                          />
+                                          <span className="text-[10px] font-bold tracking-wider uppercase text-primary font-mono">
+                                            Learning Topic
+                                          </span>
+                                        </div>
+                                        <span
+                                          className="text-muted-foreground/60 hidden sm:inline select-none"
+                                          aria-hidden="true"
+                                        >
+                                          •
+                                        </span>
+                                        <span className="font-medium text-foreground leading-snug break-words">
+                                          {topic.normalizedTitle}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
                       </ol>
                     ) : (
                       <p className="text-xs text-muted-foreground italic">

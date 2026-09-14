@@ -235,6 +235,161 @@ async function runTests() {
   const malSubApiRes = await fetch(`${BASE_URL}/api/curriculum/subjects/bad*code!`);
   assert(malSubApiRes.status === 400, "API /api/curriculum/subjects/bad*code! returns 400 Bad Request");
 
+  // ============================================================================
+  // 5. Student Learning Topics Flow Verification (Phase 7B)
+  // ============================================================================
+  console.log("\n5. Testing Student Learning Topics Flow & Component Wiring (Phase 7B)...");
+
+  // 5A: Lightweight Source-Level Sanity Check of Subject Page Component
+  console.log("  [Source Sanity Check: app/subject/[courseCode]/page.tsx]");
+  console.log("  (Note: Source-level implementation sanity check, not browser DOM rendering)");
+  const subjectPagePath = path.join(process.cwd(), "app", "subject", "[courseCode]", "page.tsx");
+  const subjectPageSource = fs.readFileSync(subjectPagePath, "utf8");
+
+  assert(
+    subjectPageSource.includes("topicsByItem") && subjectPageSource.includes("setTopicsByItem"),
+    "Subject page manages topicsByItem client state"
+  );
+  assert(
+    subjectPageSource.includes("Promise.allSettled"),
+    "Subject page resolves topic requests in parallel with Promise.allSettled"
+  );
+  assert(
+    subjectPageSource.includes("BookOpen") && subjectPageSource.includes("Learning Topic"),
+    "Subject page renders distinct Learning Topic badge with BookOpen icon"
+  );
+  assert(
+    subjectPageSource.includes("itemTopics.length > 0"),
+    "Subject page suppresses empty topic containers when no topics exist"
+  );
+  assert(
+    subjectPageSource.includes("aria-label={`Learning topics for syllabus item"),
+    "Subject page includes accessible aria-label for learning topics list"
+  );
+  assert(
+    subjectPageSource.includes("catch") && subjectPageSource.includes("topics: []"),
+    "Subject page implements graceful fallback on topic request failures"
+  );
+
+  // 5B: Deterministic Verification of the Exact 7 Canonical Topic Mappings
+  console.log("  [Deterministic Canonical Coordinate Mapping]");
+  const CANONICAL_TOPIC_MAPPINGS = [
+    {
+      courseCode: "PCC-201-COM",
+      subjectName: "Data Structures",
+      unitOrder: 1,
+      itemOrder: 1,
+      expectedTitle: "Introduction to Data Structures and Abstract Data Types",
+    },
+    {
+      courseCode: "PCC-201-COM",
+      subjectName: "Data Structures",
+      unitOrder: 4,
+      itemOrder: 1,
+      expectedTitle: "Hash Tables and Collision Resolution Strategies",
+    },
+    {
+      courseCode: "PCC-202-COM",
+      subjectName: "Object Oriented programming and Computer Graphics",
+      unitOrder: 1,
+      itemOrder: 2,
+      expectedTitle: "Fundamentals of Object-Oriented Programming",
+    },
+    {
+      courseCode: "PCC-203-COM",
+      subjectName: "Operating Systems",
+      unitOrder: 2,
+      itemOrder: 1,
+      expectedTitle: "Process Management and Process Control Block",
+    },
+    {
+      courseCode: "PCC-251-COM",
+      subjectName: "Database Management Systems",
+      unitOrder: 1,
+      itemOrder: 1,
+      expectedTitle: "Introduction to Database Management Systems",
+    },
+    {
+      courseCode: "PCC-251-COM",
+      subjectName: "Database Management Systems",
+      unitOrder: 2,
+      itemOrder: 1,
+      expectedTitle: "Structured Query Language (SQL): DDL, DML, and Queries",
+    },
+    {
+      courseCode: "PCC-252-COM",
+      subjectName: "Discrete Mathematics",
+      unitOrder: 1,
+      itemOrder: 1,
+      expectedTitle: "Propositional Logic and Set Theory",
+    },
+  ];
+
+  const targetItemIds = new Set();
+
+  for (const expected of CANONICAL_TOPIC_MAPPINGS) {
+    const apiRes = await fetch(`${BASE_URL}/api/curriculum/subjects/${expected.courseCode}`);
+    const apiJson = await apiRes.json();
+    const targetUnit = (apiJson.data?.units || []).find((u) => u.unitOrder === expected.unitOrder);
+    const targetItem = (targetUnit?.syllabusItems || []).find((i) => i.originalOrder === expected.itemOrder);
+
+    assert(
+      Boolean(targetItem && targetItem.id),
+      `Found syllabus item for ${expected.courseCode} Unit ${expected.unitOrder} Item ${expected.itemOrder}`
+    );
+
+    if (targetItem) {
+      targetItemIds.add(targetItem.id);
+      const topicRes = await fetch(`${BASE_URL}/api/curriculum/syllabus-items/${targetItem.id}/topics`);
+      const topicJson = await topicRes.json();
+      const topics = topicJson.data || [];
+
+      assert(
+        topics.length === 1,
+        `${expected.courseCode} U${expected.unitOrder} I${expected.itemOrder} has exactly 1 topic`
+      );
+      assert(
+        topics[0]?.normalizedTitle === expected.expectedTitle,
+        `${expected.courseCode} U${expected.unitOrder} I${expected.itemOrder} matches '${expected.expectedTitle}'`
+      );
+      assert(
+        topics[0]?.status === "published" && topics[0]?.syllabusItemId === targetItem.id,
+        `${expected.courseCode} U${expected.unitOrder} I${expected.itemOrder} topic is published and linked`
+      );
+    }
+  }
+
+  // 5C: Verify All Remaining 74 Items Return Empty Arrays Gracefully (No Redundant 162 Assertions)
+  console.log("  [Verifying Non-Target Syllabus Items Return Empty Topics]");
+  let nonTargetItemsWithTopics = [];
+  let totalNonTargetItemsChecked = 0;
+
+  for (const s of testSubjects) {
+    const apiRes = await fetch(`${BASE_URL}/api/curriculum/subjects/${s.code}`);
+    const apiJson = await apiRes.json();
+    const items = (apiJson.data?.units || []).flatMap((u) => u.syllabusItems || []);
+
+    for (const item of items) {
+      if (!targetItemIds.has(item.id)) {
+        totalNonTargetItemsChecked++;
+        const topicRes = await fetch(`${BASE_URL}/api/curriculum/syllabus-items/${item.id}/topics`);
+        const topicJson = await topicRes.json();
+        if (topicJson.data && topicJson.data.length > 0) {
+          nonTargetItemsWithTopics.push({ itemId: item.id, code: s.code, count: topicJson.data.length });
+        }
+      }
+    }
+  }
+
+  assert(
+    totalNonTargetItemsChecked === 74,
+    `Checked all 74 non-target syllabus items across 5 subjects (checked: ${totalNonTargetItemsChecked})`
+  );
+  assert(
+    nonTargetItemsWithTopics.length === 0,
+    `All 74 non-target syllabus items return empty topic lists (found unexpected: ${nonTargetItemsWithTopics.length})`
+  );
+
   console.log(`\n======================================================`);
   console.log(`UI Verification Complete: ${passed} PASSED, ${failed} FAILED`);
   console.log(`======================================================\n`);
