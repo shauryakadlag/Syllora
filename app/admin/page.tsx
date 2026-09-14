@@ -1,7 +1,7 @@
 import React from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck, UserCheck, KeyRound, ArrowLeft, CheckCircle2, Lock, BookOpen, ArrowRight } from "lucide-react";
+import { ShieldCheck, UserCheck, KeyRound, ArrowLeft, CheckCircle2, Lock, BookOpen, ArrowRight, ShieldAlert } from "lucide-react";
 import { verifyAdminSession } from "@/lib/auth/admin";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,13 @@ export default async function AdminDashboardPage() {
           >
             <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Learning Resources</span>
+          </Link>
+          <Link
+            href="/admin/resource-reports"
+            className="inline-flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 font-medium hover:text-amber-800 dark:hover:text-amber-300 transition-colors py-1.5 px-2.5 rounded-md border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10"
+          >
+            <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Resource Reports</span>
           </Link>
           <Link
             href="/"
@@ -159,33 +166,63 @@ export default async function AdminDashboardPage() {
       </div>
 
       {/* Administrative Modules */}
-      <Card className="border-border/80 shadow-xs hover:border-primary/40 transition-all">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-primary" aria-hidden="true" />
-              <CardTitle className="text-base font-bold text-foreground">
-                Learning Resources Roster
-              </CardTitle>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="border-border/80 shadow-xs hover:border-primary/40 transition-all">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-primary" aria-hidden="true" />
+                <CardTitle className="text-base font-bold text-foreground">
+                  Learning Resources
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs">
+                Phase 7F
+              </Badge>
             </div>
-            <Badge variant="outline" className="font-mono text-xs">
-              Phase 7F-A
-            </Badge>
-          </div>
-          <CardDescription className="text-xs text-muted-foreground">
-            Inspect all curated learning resources across verified, pending, and rejected moderation statuses.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-1">
-          <Link
-            href="/admin/resources"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-          >
-            <span>Open Resources Roster</span>
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </Link>
-        </CardContent>
-      </Card>
+            <CardDescription className="text-xs text-muted-foreground">
+              Create, edit, verify, reject, and link curated learning resources with learning topics.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-1">
+            <Link
+              href="/admin/resources"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+            >
+              <span>Manage Resources</span>
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/80 shadow-xs hover:border-amber-500/40 transition-all">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                <CardTitle className="text-base font-bold text-foreground">
+                  Resource Reports
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs">
+                Phase 8B
+              </Badge>
+            </div>
+            <CardDescription className="text-xs text-muted-foreground">
+              Review and moderate student-submitted problem reports (broken, misleading, irrelevant) on verified resources.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-1">
+            <Link
+              href="/admin/resource-reports"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-colors"
+            >
+              <span>Manage Reports</span>
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Scope Notice Card */}
       <Card className="border-primary/20 bg-primary/[0.02] dark:bg-primary/[0.05] shadow-xs">

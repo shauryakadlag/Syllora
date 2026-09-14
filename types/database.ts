@@ -16,6 +16,7 @@ export type ResourceStatus = "pending" | "verified" | "rejected";
 export type ResourceType = "video" | "article" | "pdf" | "playlist" | "documentation";
 export type PublishStatus = "draft" | "published";
 export type ReportReason = "broken" | "misleading" | "irrelevant" | "other";
+export type ReportStatus = "open" | "resolved" | "dismissed";
 
 export interface Database {
   public: {
@@ -366,6 +367,9 @@ export interface Database {
           reason: ReportReason;
           description: string | null;
           created_at: string;
+          status: ReportStatus;
+          resolved_at: string | null;
+          resolved_by: string | null;
         };
         Insert: {
           id?: string;
@@ -373,6 +377,9 @@ export interface Database {
           reason: ReportReason;
           description?: string | null;
           created_at?: string;
+          status?: ReportStatus;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
         };
         Update: {
           id?: string;
@@ -380,12 +387,21 @@ export interface Database {
           reason?: ReportReason;
           description?: string | null;
           created_at?: string;
+          status?: ReportStatus;
+          resolved_at?: string | null;
+          resolved_by?: string | null;
         };
         Relationships: [
           {
             foreignKeyName: "resource_reports_resource_id_fkey";
             columns: ["resource_id"];
             referencedRelation: "resources";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "resource_reports_resolved_by_fkey";
+            columns: ["resolved_by"];
+            referencedRelation: "admins";
             referencedColumns: ["id"];
           }
         ];
@@ -404,6 +420,7 @@ export interface Database {
       resource_status: ResourceStatus;
       resource_type: ResourceType;
       publish_status: PublishStatus;
+      report_status: ReportStatus;
     };
   };
 }

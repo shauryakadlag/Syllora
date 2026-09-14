@@ -18,6 +18,7 @@ import {
   Info,
   Plus,
   Pencil,
+  ShieldAlert,
 } from "lucide-react";
 import { verifyAdminSession } from "@/lib/auth/admin";
 import { getAdminResources, AdminResourceSummary } from "@/lib/services/admin-resources";
@@ -145,6 +146,13 @@ export default async function AdminResourcesPage() {
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Add Resource</span>
+          </Link>
+          <Link
+            href="/admin/resource-reports"
+            className="inline-flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 font-medium hover:text-amber-800 dark:hover:text-amber-300 transition-colors py-1.5 px-2.5 rounded-md border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10"
+          >
+            <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Reports</span>
           </Link>
           <Link
             href="/admin"
