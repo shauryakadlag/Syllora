@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/breadcrumb";
 import { ReportResourceDialog } from "@/components/resources/report-resource-dialog";
+import { TopicAIAssistDialog } from "@/components/ai/topic-ai-assist-dialog";
 
 interface LearningResource {
   id: string;
@@ -103,6 +104,7 @@ export default function SubjectDetailPage() {
   const [student, setStudent] = useState<StudentUser | null>(null);
   const [completedTopicIds, setCompletedTopicIds] = useState<Set<string>>(new Set());
   const [isMutatingTopic, setIsMutatingTopic] = useState<string | null>(null);
+  const [aiAssistTopic, setAiAssistTopic] = useState<{ id: string; title: string } | null>(null);
 
   // Load student auth and progress
   useEffect(() => {
@@ -575,8 +577,19 @@ export default function SubjectDetailPage() {
                                               </span>
                                             </div>
 
-                                            {/* Completion Toggle */}
-                                            <div className="shrink-0 flex items-center">
+                                            {/* Topic Actions: AI Assist + Completion Toggle */}
+                                            <div className="shrink-0 flex items-center gap-1.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => setAiAssistTopic({ id: topic.id, title: topic.normalizedTitle })}
+                                                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:text-primary-foreground hover:bg-primary/90 bg-primary/10 border border-primary/20 rounded-md px-2 py-0.5 transition-colors cursor-pointer"
+                                                title="Get AI Learning Assistance"
+                                                aria-label={`Get AI assistance for ${topic.normalizedTitle}`}
+                                              >
+                                                <Sparkles className="h-3 w-3" aria-hidden="true" />
+                                                <span>AI Assist</span>
+                                              </button>
+
                                               {student ? (
                                                 completedTopicIds.has(topic.id) ? (
                                                   <button
@@ -723,6 +736,19 @@ export default function SubjectDetailPage() {
           </div>
         </div>
       )}
+
+      {/* AI Learning Assistance Dialog */}
+      {aiAssistTopic && (
+        <TopicAIAssistDialog
+          topicId={aiAssistTopic.id}
+          topicTitle={aiAssistTopic.title}
+          courseCode={courseCodeParam}
+          isAuthenticated={!!student}
+          isOpen={!!aiAssistTopic}
+          onClose={() => setAiAssistTopic(null)}
+        />
+      )}
     </div>
   );
 }
+
