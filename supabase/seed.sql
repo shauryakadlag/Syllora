@@ -468,3 +468,132 @@ BEGIN
         SET official_text = EXCLUDED.official_text;
 
 END $seed_syllora$;
+
+-- ==============================================================================
+-- 8. CANONICAL PROOF-OF-CONCEPT LEARNING TOPICS (Phase 7A)
+-- ==============================================================================
+DO $seed_learning_topics$
+DECLARE
+    v_item_id UUID;
+BEGIN
+    -- 1. PCC-201-COM: Data Structures / Unit 1 / Item 1
+    SELECT si.id INTO v_item_id
+    FROM syllabus_items si
+    JOIN units u ON si.unit_id = u.id
+    JOIN subjects sub ON u.subject_id = sub.id
+    WHERE sub.course_code = 'PCC-201-COM' AND u.unit_order = 1 AND si.original_order = 1;
+
+    IF v_item_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM learning_topics 
+            WHERE syllabus_item_id = v_item_id AND normalized_title = 'Introduction to Data Structures and Abstract Data Types'
+        ) THEN
+            INSERT INTO learning_topics (syllabus_item_id, normalized_title, display_order, status)
+            VALUES (v_item_id, 'Introduction to Data Structures and Abstract Data Types', 1, 'published');
+        END IF;
+    END IF;
+
+    -- 2. PCC-201-COM: Data Structures / Unit 4 / Item 1
+    SELECT si.id INTO v_item_id
+    FROM syllabus_items si
+    JOIN units u ON si.unit_id = u.id
+    JOIN subjects sub ON u.subject_id = sub.id
+    WHERE sub.course_code = 'PCC-201-COM' AND u.unit_order = 4 AND si.original_order = 1;
+
+    IF v_item_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM learning_topics 
+            WHERE syllabus_item_id = v_item_id AND normalized_title = 'Hash Tables and Collision Resolution Strategies'
+        ) THEN
+            INSERT INTO learning_topics (syllabus_item_id, normalized_title, display_order, status)
+            VALUES (v_item_id, 'Hash Tables and Collision Resolution Strategies', 1, 'published');
+        END IF;
+    END IF;
+
+    -- 3. PCC-202-COM: OOP and Computer Graphics / Unit 1 / Item 2
+    SELECT si.id INTO v_item_id
+    FROM syllabus_items si
+    JOIN units u ON si.unit_id = u.id
+    JOIN subjects sub ON u.subject_id = sub.id
+    WHERE sub.course_code = 'PCC-202-COM' AND u.unit_order = 1 AND si.original_order = 2;
+
+    IF v_item_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM learning_topics 
+            WHERE syllabus_item_id = v_item_id AND normalized_title = 'Fundamentals of Object-Oriented Programming'
+        ) THEN
+            INSERT INTO learning_topics (syllabus_item_id, normalized_title, display_order, status)
+            VALUES (v_item_id, 'Fundamentals of Object-Oriented Programming', 1, 'published');
+        END IF;
+    END IF;
+
+    -- 4. PCC-203-COM: Operating Systems / Unit 2 / Item 1
+    SELECT si.id INTO v_item_id
+    FROM syllabus_items si
+    JOIN units u ON si.unit_id = u.id
+    JOIN subjects sub ON u.subject_id = sub.id
+    WHERE sub.course_code = 'PCC-203-COM' AND u.unit_order = 2 AND si.original_order = 1;
+
+    IF v_item_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM learning_topics 
+            WHERE syllabus_item_id = v_item_id AND normalized_title = 'Process Management and Process Control Block'
+        ) THEN
+            INSERT INTO learning_topics (syllabus_item_id, normalized_title, display_order, status)
+            VALUES (v_item_id, 'Process Management and Process Control Block', 1, 'published');
+        END IF;
+    END IF;
+
+    -- 5. PCC-251-COM: Database Management Systems / Unit 1 / Item 1
+    SELECT si.id INTO v_item_id
+    FROM syllabus_items si
+    JOIN units u ON si.unit_id = u.id
+    JOIN subjects sub ON u.subject_id = sub.id
+    WHERE sub.course_code = 'PCC-251-COM' AND u.unit_order = 1 AND si.original_order = 1;
+
+    IF v_item_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM learning_topics 
+            WHERE syllabus_item_id = v_item_id AND normalized_title = 'Introduction to Database Management Systems'
+        ) THEN
+            INSERT INTO learning_topics (syllabus_item_id, normalized_title, display_order, status)
+            VALUES (v_item_id, 'Introduction to Database Management Systems', 1, 'published');
+        END IF;
+    END IF;
+
+    -- 6. PCC-251-COM: Database Management Systems / Unit 2 / Item 1
+    SELECT si.id INTO v_item_id
+    FROM syllabus_items si
+    JOIN units u ON si.unit_id = u.id
+    JOIN subjects sub ON u.subject_id = sub.id
+    WHERE sub.course_code = 'PCC-251-COM' AND u.unit_order = 2 AND si.original_order = 1;
+
+    IF v_item_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM learning_topics 
+            WHERE syllabus_item_id = v_item_id AND normalized_title = 'Structured Query Language (SQL): DDL, DML, and Queries'
+        ) THEN
+            INSERT INTO learning_topics (syllabus_item_id, normalized_title, display_order, status)
+            VALUES (v_item_id, 'Structured Query Language (SQL): DDL, DML, and Queries', 1, 'published');
+        END IF;
+    END IF;
+
+    -- 7. PCC-252-COM: Discrete Mathematics / Unit 1 / Item 1
+    SELECT si.id INTO v_item_id
+    FROM syllabus_items si
+    JOIN units u ON si.unit_id = u.id
+    JOIN subjects sub ON u.subject_id = sub.id
+    WHERE sub.course_code = 'PCC-252-COM' AND u.unit_order = 1 AND si.original_order = 1;
+
+    IF v_item_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM learning_topics 
+            WHERE syllabus_item_id = v_item_id AND normalized_title = 'Propositional Logic and Set Theory'
+        ) THEN
+            INSERT INTO learning_topics (syllabus_item_id, normalized_title, display_order, status)
+            VALUES (v_item_id, 'Propositional Logic and Set Theory', 1, 'published');
+        END IF;
+    END IF;
+
+END $seed_learning_topics$;
+

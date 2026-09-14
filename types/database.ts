@@ -244,25 +244,25 @@ export interface Database {
       learning_topics: {
         Row: {
           id: string;
-          syllabus_item_id: string | null;
-          title: string;
-          description: string | null;
+          syllabus_item_id: string;
+          normalized_title: string;
+          display_order: number;
           status: PublishStatus;
           created_at: string;
         };
         Insert: {
           id?: string;
-          syllabus_item_id?: string | null;
-          title: string;
-          description?: string | null;
+          syllabus_item_id: string;
+          normalized_title: string;
+          display_order?: number;
           status?: PublishStatus;
           created_at?: string;
         };
         Update: {
           id?: string;
-          syllabus_item_id?: string | null;
-          title?: string;
-          description?: string | null;
+          syllabus_item_id?: string;
+          normalized_title?: string;
+          display_order?: number;
           status?: PublishStatus;
           created_at?: string;
         };
