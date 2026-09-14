@@ -485,3 +485,291 @@ export async function updateAdminResource(
     };
   }
 }
+
+/**
+ * Verifies a pending learning resource.
+ * State transition: 'pending' -> 'verified'
+ * Sets verified_by to adminId and verified_at to current server ISO timestamp.
+ * Strictly rejects any transition from 'verified' or 'rejected'.
+ *
+ * Atomicity: The database UPDATE conditionally requires id = $id AND status = 'pending'
+ * in a single atomic statement to prevent read-then-write race conditions.
+ */
+export async function verifyAdminResource(
+  id: string,
+  adminId: string,
+  client?: SupabaseClient<Database>
+): Promise<ServiceResult<AdminResourceSummary>> {
+  if (!id || !UUID_REGEX.test(id)) {
+    return {
+      success: false,
+      data: null,
+      error: { code: "BAD_REQUEST", message: "Invalid resource ID format. Must be a valid UUID." },
+    };
+  }
+
+  if (!adminId || !UUID_REGEX.test(adminId)) {
+    return {
+      success: false,
+      data: null,
+      error: { code: "BAD_REQUEST", message: "Invalid admin ID format. Must be a valid UUID." },
+    };
+  }
+
+  try {
+    const supabase = client || getSupabaseAdminServerClient();
+    const verifiedAt = new Date().toISOString();
+
+    // Atomic conditional UPDATE: requires id = target AND status = 'pending'
+    const { data, error: updateError } = await supabase
+      .from("resources")
+      .update({
+        status: "verified",
+        verified_by: adminId,
+        verified_at: verifiedAt,
+      })
+      .eq("id", id)
+      .eq("status", "pending")
+      .select(`
+        id,
+        title,
+        url,
+        type,
+        provider,
+        description,
+        status,
+        verified_by,
+        verified_at,
+        created_at,
+        topic_resources (
+          learning_topics (
+            id,
+            normalized_title
+          )
+        )
+      `)
+      .maybeSingle();
+
+    if (updateError) {
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: "DATABASE_ERROR",
+          message: `Failed to verify resource: ${updateError.message}`,
+        },
+      };
+    }
+
+    // If zero rows were updated, determine whether resource is missing or non-pending
+    if (!data) {
+      const { data: existing, error: fetchError } = await supabase
+        .from("resources")
+        .select("id, status")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (fetchError) {
+        return {
+          success: false,
+          data: null,
+          error: { code: "DATABASE_ERROR", message: `Failed to verify resource state: ${fetchError.message}` },
+        };
+      }
+
+      if (!existing) {
+        return {
+          success: false,
+          data: null,
+          error: { code: "NOT_FOUND", message: `Resource with ID '${id}' was not found.` },
+        };
+      }
+
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: "BAD_REQUEST",
+          message: `Cannot verify resource with status '${existing.status}'. Only pending resources can be verified.`,
+        },
+      };
+    }
+
+    let topic: { id: string; normalizedTitle: string } | null = null;
+    if (Array.isArray(data.topic_resources) && data.topic_resources.length > 0) {
+      const tr = data.topic_resources[0];
+      const lt = tr.learning_topics as { id: string; normalized_title: string } | null;
+      if (lt && lt.id && lt.normalized_title) {
+        topic = {
+          id: lt.id,
+          normalizedTitle: lt.normalized_title,
+        };
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        id: data.id,
+        title: data.title,
+        url: data.url,
+        isSafeUrl: isSafeUrl(data.url),
+        type: data.type as ResourceType,
+        provider: formatProvider(data.provider, data.url),
+        description: data.description || null,
+        status: data.status as ResourceStatus,
+        verifiedBy: data.verified_by || null,
+        verifiedAt: data.verified_at || null,
+        createdAt: data.created_at || new Date().toISOString(),
+        topic,
+      },
+      error: null,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected internal error";
+    return {
+      success: false,
+      data: null,
+      error: { code: "INTERNAL_ERROR", message },
+    };
+  }
+}
+
+/**
+ * Rejects a pending learning resource.
+ * State transition: 'pending' -> 'rejected'
+ * Clears verified_by and verified_at to NULL.
+ * Strictly rejects any transition from 'verified' or 'rejected'.
+ *
+ * Atomicity: The database UPDATE conditionally requires id = $id AND status = 'pending'
+ * in a single atomic statement to prevent read-then-write race conditions.
+ */
+export async function rejectAdminResource(
+  id: string,
+  client?: SupabaseClient<Database>
+): Promise<ServiceResult<AdminResourceSummary>> {
+  if (!id || !UUID_REGEX.test(id)) {
+    return {
+      success: false,
+      data: null,
+      error: { code: "BAD_REQUEST", message: "Invalid resource ID format. Must be a valid UUID." },
+    };
+  }
+
+  try {
+    const supabase = client || getSupabaseAdminServerClient();
+
+    // Atomic conditional UPDATE: requires id = target AND status = 'pending'
+    const { data, error: updateError } = await supabase
+      .from("resources")
+      .update({
+        status: "rejected",
+        verified_by: null,
+        verified_at: null,
+      })
+      .eq("id", id)
+      .eq("status", "pending")
+      .select(`
+        id,
+        title,
+        url,
+        type,
+        provider,
+        description,
+        status,
+        verified_by,
+        verified_at,
+        created_at,
+        topic_resources (
+          learning_topics (
+            id,
+            normalized_title
+          )
+        )
+      `)
+      .maybeSingle();
+
+    if (updateError) {
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: "DATABASE_ERROR",
+          message: `Failed to reject resource: ${updateError.message}`,
+        },
+      };
+    }
+
+    // If zero rows were updated, determine whether resource is missing or non-pending
+    if (!data) {
+      const { data: existing, error: fetchError } = await supabase
+        .from("resources")
+        .select("id, status")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (fetchError) {
+        return {
+          success: false,
+          data: null,
+          error: { code: "DATABASE_ERROR", message: `Failed to reject resource state: ${fetchError.message}` },
+        };
+      }
+
+      if (!existing) {
+        return {
+          success: false,
+          data: null,
+          error: { code: "NOT_FOUND", message: `Resource with ID '${id}' was not found.` },
+        };
+      }
+
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: "BAD_REQUEST",
+          message: `Cannot reject resource with status '${existing.status}'. Only pending resources can be rejected.`,
+        },
+      };
+    }
+
+    let topic: { id: string; normalizedTitle: string } | null = null;
+    if (Array.isArray(data.topic_resources) && data.topic_resources.length > 0) {
+      const tr = data.topic_resources[0];
+      const lt = tr.learning_topics as { id: string; normalized_title: string } | null;
+      if (lt && lt.id && lt.normalized_title) {
+        topic = {
+          id: lt.id,
+          normalizedTitle: lt.normalized_title,
+        };
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        id: data.id,
+        title: data.title,
+        url: data.url,
+        isSafeUrl: isSafeUrl(data.url),
+        type: data.type as ResourceType,
+        provider: formatProvider(data.provider, data.url),
+        description: data.description || null,
+        status: data.status as ResourceStatus,
+        verifiedBy: data.verified_by || null,
+        verifiedAt: data.verified_at || null,
+        createdAt: data.created_at || new Date().toISOString(),
+        topic,
+      },
+      error: null,
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unexpected internal error";
+    return {
+      success: false,
+      data: null,
+      error: { code: "INTERNAL_ERROR", message },
+    };
+  }
+}

@@ -124,7 +124,7 @@ async function runTests() {
   }
 
   console.log("================================================================================");
-  console.log("Syllora Phase 7F-B — Admin Resource Create/Edit Verification");
+  console.log("Syllora Phase 7F-C — Resource Verification & Rejection Moderation");
   console.log("================================================================================\n");
 
   const seededVerifiedId = "7d5c1632-7274-4dc0-8f15-939f2e9f585b";
@@ -181,7 +181,19 @@ async function runTests() {
     });
     assert(unauthPatch.status === 401, `Unauthenticated PATCH /api/admin/resources/[id] returns 401 Unauthorized (${unauthPatch.status})`);
 
-    // 1.6 Spoofed token on POST /api/admin/resources
+    // 1.6 POST /api/admin/resources/[id]/verify without session
+    const unauthVerify = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/verify`, {
+      method: "POST",
+    });
+    assert(unauthVerify.status === 401, `Unauthenticated POST /api/admin/resources/[id]/verify returns 401 Unauthorized (${unauthVerify.status})`);
+
+    // 1.7 POST /api/admin/resources/[id]/reject without session
+    const unauthReject = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/reject`, {
+      method: "POST",
+    });
+    assert(unauthReject.status === 401, `Unauthenticated POST /api/admin/resources/[id]/reject returns 401 Unauthorized (${unauthReject.status})`);
+
+    // 1.8 Spoofed token on POST /api/admin/resources
     const spoofedPost = await fetch(`${BASE_URL}/api/admin/resources`, {
       method: "POST",
       headers: {
@@ -196,7 +208,7 @@ async function runTests() {
     });
     assert(spoofedPost.status === 401, `Spoofed cookie on POST /api/admin/resources returns 401 Unauthorized (${spoofedPost.status})`);
 
-    // 1.7 Spoofed token on PATCH /api/admin/resources/[id]
+    // 1.9 Spoofed token on PATCH /api/admin/resources/[id]
     const spoofedPatch = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}`, {
       method: "PATCH",
       headers: {
@@ -206,6 +218,24 @@ async function runTests() {
       body: JSON.stringify({ title: "Spoofed Token Patch" }),
     });
     assert(spoofedPatch.status === 401, `Spoofed cookie on PATCH /api/admin/resources/[id] returns 401 Unauthorized (${spoofedPatch.status})`);
+
+    // 1.10 Spoofed token on POST /api/admin/resources/[id]/verify
+    const spoofedVerify = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/verify`, {
+      method: "POST",
+      headers: {
+        Cookie: "sb-enxbvqlaasbiqywxkmfu-auth-token=fake_jwt_cookie",
+      },
+    });
+    assert(spoofedVerify.status === 401, `Spoofed cookie on POST /api/admin/resources/[id]/verify returns 401 Unauthorized (${spoofedVerify.status})`);
+
+    // 1.11 Spoofed token on POST /api/admin/resources/[id]/reject
+    const spoofedReject = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/reject`, {
+      method: "POST",
+      headers: {
+        Cookie: "sb-enxbvqlaasbiqywxkmfu-auth-token=fake_jwt_cookie",
+      },
+    });
+    assert(spoofedReject.status === 401, `Spoofed cookie on POST /api/admin/resources/[id]/reject returns 401 Unauthorized (${spoofedReject.status})`);
 
     // -------------------------------------------------------------------------
     // TEST SUITE 2: Server-Side Validation Rules & Protocols
@@ -353,6 +383,39 @@ async function runTests() {
     assert(formatProvider("NPTEL", "https://nptel.ac.in") === "NPTEL", "Explicit provider preserved");
     assert(formatProvider("", "https://www.youtube.com/watch?v=123") === "youtube.com", "Provider fallback extracts domain");
 
+    // Service functions and Route handlers for Moderation
+    const adminServiceSource = fs.readFileSync(path.join(process.cwd(), "lib", "services", "admin-resources.ts"), "utf8");
+    assert(adminServiceSource.includes("export async function verifyAdminResource"), "lib/services/admin-resources.ts exports verifyAdminResource");
+    assert(adminServiceSource.includes("export async function rejectAdminResource"), "lib/services/admin-resources.ts exports rejectAdminResource");
+    assert(
+      adminServiceSource.includes('.eq("status", "pending")'),
+      "verifyAdminResource and rejectAdminResource include status='pending' condition directly in update queries"
+    );
+    assert(
+      adminServiceSource.includes("Only pending resources can be verified") &&
+      adminServiceSource.includes("Only pending resources can be rejected"),
+      "verifyAdminResource and rejectAdminResource strictly reject non-pending transitions with clear error message"
+    );
+
+    const verifyRoutePath = path.join(process.cwd(), "app", "api", "admin", "resources", "[id]", "verify", "route.ts");
+    assert(fs.existsSync(verifyRoutePath), "Dedicated route app/api/admin/resources/[id]/verify/route.ts exists");
+    const verifyRouteSource = fs.readFileSync(verifyRoutePath, "utf8");
+    assert(verifyRouteSource.includes("export async function POST"), "Verify route handler implements POST");
+    assert(verifyRouteSource.includes("verifyAdminSession"), "Verify route handler uses verifyAdminSession");
+
+    const rejectRoutePath = path.join(process.cwd(), "app", "api", "admin", "resources", "[id]", "reject", "route.ts");
+    assert(fs.existsSync(rejectRoutePath), "Dedicated route app/api/admin/resources/[id]/reject/route.ts exists");
+    const rejectRouteSource = fs.readFileSync(rejectRoutePath, "utf8");
+    assert(rejectRouteSource.includes("export async function POST"), "Reject route handler implements POST");
+    assert(rejectRouteSource.includes("verifyAdminSession"), "Reject route handler uses verifyAdminSession");
+
+    const moderationUiPath = path.join(process.cwd(), "components", "admin", "resource-moderation-actions.tsx");
+    assert(fs.existsSync(moderationUiPath), "components/admin/resource-moderation-actions.tsx exists");
+    const moderationUiSource = fs.readFileSync(moderationUiPath, "utf8");
+    assert(moderationUiSource.includes('"use client"') || moderationUiSource.includes("'use client'"), "resource-moderation-actions is a client component");
+    assert(moderationUiSource.includes("handleVerify") && moderationUiSource.includes("handleReject"), "resource-moderation-actions handles verify and reject actions");
+    assert(moderationUiSource.includes("confirmingReject"), "resource-moderation-actions requires confirmation before rejection");
+
     // -------------------------------------------------------------------------
     // TEST SUITE 3: Database RLS Mutation Policies
     // -------------------------------------------------------------------------
@@ -395,9 +458,9 @@ async function runTests() {
     );
 
     // -------------------------------------------------------------------------
-    // TEST SUITE 4: Active Admin Simulation (Rollback Transaction)
+    // TEST SUITE 4: Active Admin Create, Edit & Atomic Moderation (Rollback TX)
     // -------------------------------------------------------------------------
-    console.log("\n--- Test Suite 4: Active Admin Create & Edit (Rollback TX) ---");
+    console.log("\n--- Test Suite 4: Active Admin Create, Edit & Atomic Moderation (Rollback TX) ---");
 
     const simResults = runSupabaseQuery(`
       BEGIN;
@@ -430,7 +493,107 @@ async function runTests() {
       SET description = 'Updated description on verified resource'
       WHERE id = '7d5c1632-7274-4dc0-8f15-939f2e9f585b';
 
-      -- 5. Retrieve verification counts confirming all states
+      -- 5. Insert test pending resource A for verification
+      INSERT INTO public.resources (id, title, url, type, provider, description, status, verified_by, verified_at)
+      VALUES (
+        '11111111-1111-1111-1111-111111111111',
+        'Simulation Pending Resource A',
+        'https://example.com/sim-mod-pending-a',
+        'article',
+        'TestSimProvider',
+        'Pending resource to verify',
+        'pending',
+        NULL,
+        NULL
+      );
+
+      -- 6. Atomic conditional verify (pending -> verified): requires status = 'pending'
+      WITH upd AS (
+        UPDATE public.resources
+        SET status = 'verified',
+            verified_by = '00000000-0000-0000-0000-000000000001',
+            verified_at = NOW()
+        WHERE id = '11111111-1111-1111-1111-111111111111'
+          AND status = 'pending'
+        RETURNING id
+      )
+      SELECT count(*) INTO TEMP TABLE t_verify_pending_ok FROM upd;
+
+      -- 7. Attempt re-verifying already verified resource A (must affect 0 rows)
+      WITH upd AS (
+        UPDATE public.resources
+        SET status = 'verified',
+            verified_by = '00000000-0000-0000-0000-000000000001',
+            verified_at = NOW()
+        WHERE id = '11111111-1111-1111-1111-111111111111'
+          AND status = 'pending'
+        RETURNING id
+      )
+      SELECT count(*) INTO TEMP TABLE t_reverify_blocked FROM upd;
+
+      -- 8. Attempt rejecting already verified resource A (must affect 0 rows)
+      WITH upd AS (
+        UPDATE public.resources
+        SET status = 'rejected',
+            verified_by = NULL,
+            verified_at = NULL
+        WHERE id = '11111111-1111-1111-1111-111111111111'
+          AND status = 'pending'
+        RETURNING id
+      )
+      SELECT count(*) INTO TEMP TABLE t_verify_to_reject_blocked FROM upd;
+
+      -- 9. Insert test pending resource B for rejection
+      INSERT INTO public.resources (id, title, url, type, provider, description, status, verified_by, verified_at)
+      VALUES (
+        '22222222-2222-2222-2222-222222222222',
+        'Simulation Pending Resource B',
+        'https://example.com/sim-mod-pending-b',
+        'video',
+        'TestSimProvider',
+        'Pending resource to reject',
+        'pending',
+        NULL,
+        NULL
+      );
+
+      -- 10. Atomic conditional reject (pending -> rejected): requires status = 'pending'
+      WITH upd AS (
+        UPDATE public.resources
+        SET status = 'rejected',
+            verified_by = NULL,
+            verified_at = NULL
+        WHERE id = '22222222-2222-2222-2222-222222222222'
+          AND status = 'pending'
+        RETURNING id
+      )
+      SELECT count(*) INTO TEMP TABLE t_reject_pending_ok FROM upd;
+
+      -- 11. Attempt verifying already rejected resource B (must affect 0 rows)
+      WITH upd AS (
+        UPDATE public.resources
+        SET status = 'verified',
+            verified_by = '00000000-0000-0000-0000-000000000001',
+            verified_at = NOW()
+        WHERE id = '22222222-2222-2222-2222-222222222222'
+          AND status = 'pending'
+        RETURNING id
+      )
+      SELECT count(*) INTO TEMP TABLE t_reject_to_verify_blocked FROM upd;
+
+      -- 12. Attempt re-rejecting already rejected resource B (must affect 0 rows)
+      WITH upd AS (
+        UPDATE public.resources
+        SET status = 'rejected',
+            verified_by = NULL,
+            verified_at = NULL
+        WHERE id = '22222222-2222-2222-2222-222222222222'
+          AND status = 'pending'
+        RETURNING id
+      )
+      SELECT count(*) INTO TEMP TABLE t_rereject_blocked FROM upd;
+
+      -- 13. Retrieve verification counts confirming all states and audit columns
       SELECT 
         (SELECT count(*) FROM public.resources 
          WHERE url = 'https://example.com/sim-test-structure-guide' 
@@ -442,7 +605,23 @@ async function runTests() {
          WHERE id = '7d5c1632-7274-4dc0-8f15-939f2e9f585b' 
            AND status = 'verified' 
            AND verified_by IS NOT NULL 
-           AND verified_at IS NOT NULL) as verified_preserve_ok;
+           AND verified_at IS NOT NULL) as verified_preserve_ok,
+        (SELECT count FROM t_verify_pending_ok) as verify_pending_ok,
+        (SELECT count FROM t_reverify_blocked) as reverify_blocked,
+        (SELECT count FROM t_verify_to_reject_blocked) as verify_to_reject_blocked,
+        (SELECT count FROM t_reject_pending_ok) as reject_pending_ok,
+        (SELECT count FROM t_reject_to_verify_blocked) as reject_to_verify_blocked,
+        (SELECT count FROM t_rereject_blocked) as rereject_blocked,
+        (SELECT count(*) FROM public.resources
+         WHERE id = '11111111-1111-1111-1111-111111111111'
+           AND status = 'verified'
+           AND verified_by = '00000000-0000-0000-0000-000000000001'
+           AND verified_at IS NOT NULL) as audit_verified_correct,
+        (SELECT count(*) FROM public.resources
+         WHERE id = '22222222-2222-2222-2222-222222222222'
+           AND status = 'rejected'
+           AND verified_by IS NULL
+           AND verified_at IS NULL) as audit_rejected_correct;
 
       RESET ROLE;
       ROLLBACK;
@@ -458,12 +637,48 @@ async function runTests() {
       Number(simState.verified_preserve_ok) === 1,
       "Active admin can edit verified resource preserving verified status and audit trail"
     );
+    assert(
+      Number(simState.verify_pending_ok) === 1,
+      "pending -> verified atomic transition succeeds (affects exactly 1 row)"
+    );
+    assert(
+      Number(simState.reverify_blocked) === 0,
+      "verified resource cannot be verified again (conditional update matches 0 rows)"
+    );
+    assert(
+      Number(simState.verify_to_reject_blocked) === 0,
+      "verified resource cannot be rejected (conditional update matches 0 rows)"
+    );
+    assert(
+      Number(simState.reject_pending_ok) === 1,
+      "pending -> rejected atomic transition succeeds (affects exactly 1 row)"
+    );
+    assert(
+      Number(simState.reject_to_verify_blocked) === 0,
+      "rejected resource cannot be verified (conditional update matches 0 rows)"
+    );
+    assert(
+      Number(simState.rereject_blocked) === 0,
+      "rejected resource cannot be rejected again (conditional update matches 0 rows)"
+    );
+    assert(
+      Number(simState.audit_verified_correct) === 1,
+      "Verification audit fields remain correct: verified_by is admin UUID and verified_at is set"
+    );
+    assert(
+      Number(simState.audit_rejected_correct) === 1,
+      "Rejection audit fields remain correct: verified_by is NULL and verified_at is NULL"
+    );
 
-    // Verify rollback completed cleanly: confirm simulation resource does NOT exist
+    // Verify rollback completed cleanly: confirm simulation resources do NOT exist
     const checkRolledBack = runSupabaseQuery(`
-      SELECT id FROM public.resources WHERE url = 'https://example.com/sim-test-structure-guide';
+      SELECT count(*) as leftover FROM public.resources WHERE url IN (
+        'https://example.com/sim-test-structure-guide',
+        'https://example.com/sim-mod-pending-a',
+        'https://example.com/sim-mod-pending-b'
+      );
     `);
-    assert(checkRolledBack.length === 0, `Rollback confirmed: simulation test resource was cleanly removed`);
+    assert(Number(checkRolledBack[0]?.leftover || 0) === 0, `Rollback confirmed: simulation test resources cleanly removed`);
 
     // Confirm inactive audit account remains inactive
     const auditAccountCheck = runSupabaseQuery(`
@@ -529,7 +744,10 @@ async function runTests() {
       "app/admin/resources/[id]/edit/page.tsx",
       "app/api/admin/resources/route.ts",
       "app/api/admin/resources/[id]/route.ts",
+      "app/api/admin/resources/[id]/verify/route.ts",
+      "app/api/admin/resources/[id]/reject/route.ts",
       "components/admin/resource-form.tsx",
+      "components/admin/resource-moderation-actions.tsx",
     ];
 
     let foundServiceKey = false;
@@ -543,7 +761,7 @@ async function runTests() {
         }
       }
     }
-    assert(!foundServiceKey, "Zero SUPABASE_SERVICE_ROLE_KEY references in Phase 7F-B code");
+    assert(!foundServiceKey, "Zero SUPABASE_SERVICE_ROLE_KEY references in Phase 7F-C code");
 
     // Check that DELETE /api/admin/resources/[id] is not implemented
     const deleteRes = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}`, {
@@ -552,6 +770,24 @@ async function runTests() {
     assert(
       deleteRes.status === 405 || deleteRes.status === 404,
       `DELETE /api/admin/resources/[id] is not implemented (${deleteRes.status})`
+    );
+
+    // Check that DELETE /api/admin/resources/[id]/verify is not implemented
+    const deleteVerifyRes = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/verify`, {
+      method: "DELETE",
+    });
+    assert(
+      deleteVerifyRes.status === 405 || deleteVerifyRes.status === 404,
+      `DELETE /api/admin/resources/[id]/verify is not implemented (${deleteVerifyRes.status})`
+    );
+
+    // Check that DELETE /api/admin/resources/[id]/reject is not implemented
+    const deleteRejectRes = await fetch(`${BASE_URL}/api/admin/resources/${seededVerifiedId}/reject`, {
+      method: "DELETE",
+    });
+    assert(
+      deleteRejectRes.status === 405 || deleteRejectRes.status === 404,
+      `DELETE /api/admin/resources/[id]/reject is not implemented (${deleteRejectRes.status})`
     );
 
   } catch (err) {

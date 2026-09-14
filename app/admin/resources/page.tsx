@@ -24,6 +24,7 @@ import { getAdminResources, AdminResourceSummary } from "@/lib/services/admin-re
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LogoutButton } from "@/components/admin/logout-button";
+import { ResourceModerationActions } from "@/components/admin/resource-moderation-actions";
 import { ResourceStatus, ResourceType } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -129,7 +130,7 @@ export default async function AdminResourcesPage() {
               {admin.role}
             </Badge>
             <Badge variant="secondary" className="text-xs text-muted-foreground font-mono">
-              Phase 7F-B
+              Phase 7F-C
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground pt-0.5">
@@ -275,7 +276,7 @@ export default async function AdminResourcesPage() {
                     <th scope="col" className="px-4 py-3 w-36">Provider</th>
                     <th scope="col" className="px-4 py-3">Linked Topic</th>
                     <th scope="col" className="px-4 py-3 w-28 text-right">Added</th>
-                    <th scope="col" className="px-4 py-3 w-20 text-right">Actions</th>
+                    <th scope="col" className="px-4 py-3 w-48 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -353,14 +354,11 @@ export default async function AdminResourcesPage() {
 
                       {/* Actions */}
                       <td className="px-4 py-3.5 align-top text-right">
-                        <Link
-                          href={`/admin/resources/${item.id}/edit`}
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium hover:underline py-1 px-2 rounded hover:bg-primary/5 transition-colors"
-                          title="Edit resource metadata"
-                        >
-                          <Pencil className="h-3 w-3" aria-hidden="true" />
-                          <span>Edit</span>
-                        </Link>
+                        <ResourceModerationActions
+                          resourceId={item.id}
+                          status={item.status}
+                          resourceTitle={item.title}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -421,13 +419,12 @@ export default async function AdminResourcesPage() {
                   )}
 
                   <div className="flex items-center justify-end pt-1">
-                    <Link
-                      href={`/admin/resources/${item.id}/edit`}
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium py-1 px-2.5 rounded border border-border bg-background hover:bg-muted/40 transition-colors"
-                    >
-                      <Pencil className="h-3 w-3" aria-hidden="true" />
-                      <span>Edit Resource</span>
-                    </Link>
+                    <ResourceModerationActions
+                      resourceId={item.id}
+                      status={item.status}
+                      resourceTitle={item.title}
+                      compact
+                    />
                   </div>
                 </div>
               ))}
@@ -442,11 +439,10 @@ export default async function AdminResourcesPage() {
           <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" aria-hidden="true" />
           <div className="space-y-1">
             <p className="font-semibold text-foreground">
-              Phase 7F-B: Secure Resource Create/Edit Active
+              Phase 7F-C: Resource Verification & Rejection Moderation Active
             </p>
             <p className="leading-relaxed">
-              Administrators may create new catalog resources (defaulting to pending status) and edit existing metadata.
-              Moderation verification transitions, topic linking, student submissions, and rating workflows remain strictly scoped to upcoming phases.
+              Administrators can verify or reject pending catalog resources. Verified resources are published immediately to the student curriculum experience, while rejected resources remain excluded. Topic linking and rating workflows remain strictly scoped to upcoming phases.
             </p>
           </div>
         </CardContent>
