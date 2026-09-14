@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { BookOpen, Menu, X, Compass } from "lucide-react";
+import { BookOpen, Menu, X, Layers } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -30,7 +30,7 @@ export function Header() {
             variant="academic"
             className="hidden sm:inline-flex text-[11px] font-medium"
           >
-            SPPU 2024 Pattern
+            SPPU • 2024 Pattern
           </Badge>
         </div>
 
@@ -43,25 +43,19 @@ export function Header() {
             Home
           </Link>
           <Link
-            href="#flow"
+            href="/#curriculum"
             className="transition-colors hover:text-foreground"
           >
-            User Flow
-          </Link>
-          <Link
-            href="#scope"
-            className="transition-colors hover:text-foreground"
-          >
-            Curriculum Scope
+            Curriculum
           </Link>
         </nav>
 
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-3">
           <Button asChild size="sm" className="gap-2">
-            <Link href="#explore">
-              <Compass className="h-4 w-4" />
-              Explore Syllabus
+            <Link href="/#curriculum">
+              <Layers className="h-4 w-4" />
+              Explore Semesters
             </Link>
           </Button>
         </div>
@@ -88,7 +82,7 @@ export function Header() {
         <div className="md:hidden border-b border-border bg-background px-4 pt-2 pb-6 space-y-3">
           <div className="pt-2 pb-1">
             <Badge variant="academic" className="text-[11px]">
-              SPPU 2024 Pattern • SE Comp Eng
+              SPPU 2024 Pattern • Computer Engineering
             </Badge>
           </div>
           <div className="flex flex-col space-y-2 text-sm font-medium">
@@ -100,18 +94,11 @@ export function Header() {
               Home
             </Link>
             <Link
-              href="#flow"
+              href="/#curriculum"
               onClick={() => setIsMobileMenuOpen(false)}
               className="py-2 text-muted-foreground transition-colors hover:text-foreground"
             >
-              User Flow
-            </Link>
-            <Link
-              href="#scope"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="py-2 text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Curriculum Scope
+              Curriculum
             </Link>
           </div>
           <div className="pt-2">
@@ -120,9 +107,9 @@ export function Header() {
               className="w-full gap-2 justify-center"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <Link href="#explore">
-                <Compass className="h-4 w-4" />
-                Explore Syllabus
+              <Link href="/#curriculum">
+                <Layers className="h-4 w-4" />
+                Explore Semesters
               </Link>
             </Button>
           </div>
